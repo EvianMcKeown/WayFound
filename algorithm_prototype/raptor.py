@@ -16,7 +16,7 @@ INF: int = sys.maxsize
 
 @dataclass
 class Stop:
-    """each stop corresponds to a distinct location,
+    """each stop corresponds to a (distinct) location,
     where a commuter can board or get off a vehicle (train, bus, etc.)"""
 
     id: str
@@ -154,7 +154,7 @@ def raptor_algo(
     target_id: str,
     departure_time: int,
     max_rounds: int = 10,
-) -> Dict[str, int]:
+) -> Tuple[Dict[str, int], List[Optional[Dict]]]:
     """RAPTOR - Round bAsed Public Transit Optimised Router.
 
     v1: unoptimised
@@ -200,6 +200,11 @@ def raptor_algo(
     marked = [False] * n
     marked[source_idx] = True
     marked_list = [source_idx]
+
+    # store predecessors for path reconstruction
+    # each entry is a dict with keys: prev_idx, arrival_time, mode, route_id, trip_id, transfer_time
+    # or None if no predecessor (initially)
+    predecessor: List[Optional[Dict]] = [None] * n
 
     # main round
     for k in range(1, max_rounds + 1):
@@ -262,6 +267,20 @@ def raptor_algo(
                             marked_list.append(stop_idx2)
                             improved = True
 
+                        # update predecessor
+                        predecessor[stop_idx2] = {
+                            "prev_idx": (
+                                stop_indices[pos2 - 1]
+                                if pos2 > boarded_at
+                                else boarded_at
+                            ),
+                            "arrival_time": trip_time,
+                            "mode": "trip",
+                            "route_id": rid,
+                            "trip_id": trip.id,
+                            "transfer_time": None,
+                        }
+
         # 3: Look at foot-paths (transfers) — since we have no chained walks and
         # we are using a fixed distance based formula for walking time, all we
         # have to do is 'walk' through (pardon the pun) each transfer.
@@ -279,6 +298,15 @@ def raptor_algo(
                         marked[v] = True
                         marked_list.append(v)
                         improved = True
+                    # update predecessor
+                    predecessor[v] = {
+                        "prev_idx": p,
+                        "arrival_time": new_arrival,
+                        "mode": "transfer",
+                        "route_id": None,
+                        "trip_id": None,
+                        "transfer_time": walk_time,
+                    }
 
         if not improved:
             break
@@ -291,7 +319,37 @@ def raptor_algo(
     for i, sid in idx_to_id.items():
         result[sid] = best[i]
 
-    return result
+    # reconstruct path
+    target_idx = id_to_idx[target_id]
+    journey = reconstruct_path(predecessor, idx_to_id, target_idx, source_idx)
+
+    return result, journey
+
+
+def reconstruct_path(predecessor, idx_to_id, target_idx, source_idx):
+    path = []
+    current = target_idx
+    while current != source_idx and predecessor[current] is not None:
+        step = predecessor[current].copy()
+        step["stop_id"] = idx_to_id[current]
+        step["from_stop_id"] = idx_to_id[step["prev_idx"]]
+        path.append(step)
+        current = step["prev_idx"]
+
+    # add source stop
+    path.append(
+        {
+            "stop_id": idx_to_id[source_idx],
+            "arrival_time": result[idx_to_id[source_idx]],
+            "mode": "start",
+            "route_id": None,
+            "trip_id": None,
+            "transfer_time": None,
+            "from_stop_id": None,
+        }
+    )
+    path.reverse()
+    return path
 
 
 if __name__ == "__main__":

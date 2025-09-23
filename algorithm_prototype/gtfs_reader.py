@@ -1,6 +1,6 @@
 from typing import Dict, Set, List
 import csv
-from raptor import Stop, Route, Trip
+from algorithm_prototype.raptor import Stop, Route, Trip
 from pathlib import Path
 
 
