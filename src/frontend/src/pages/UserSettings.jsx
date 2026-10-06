@@ -105,7 +105,7 @@ export default function UserSettings() {
                 </h1>
 
                 <button
-                    onClick={() => navigate("/home")}
+                    onClick={() => navigate("/")}
                     className="mb-6 bg-[#001f4d] text-white py-2 px-4 rounded hover:bg-[#003366]"
                 >
                     ← Back to Home

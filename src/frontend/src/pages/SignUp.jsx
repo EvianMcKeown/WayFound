@@ -30,7 +30,7 @@ export default function SignUp() {
 
             if (res.ok) {
                 alert("Signup successful! Please log in.");
-                navigate("/");
+                navigate("/login");
             } else {
                 alert(data.error || "Signup failed");
             }
@@ -82,7 +82,7 @@ export default function SignUp() {
 
                     <p className="mt-4 text-base text-center text-black">
                         Already have an account?{" "}
-                        <Link to="/" className="text-[#001f4d] underline">Log In</Link>
+                        <Link to="/login" className="text-[#001f4d] underline">Log In</Link>
                     </p>
                 </form>
             </div>

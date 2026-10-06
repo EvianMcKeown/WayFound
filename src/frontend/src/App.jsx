@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Home from "./pages/Home";
@@ -8,35 +8,21 @@ import UserSettings from "./pages/UserSettings";
 
 
 function PrivateRoute({ children }) {
-  const token = localStorage.getItem("access"); // make sure we check "access"
-  return token ? children : <Navigate to="/" replace />;
+  const location = useLocation();
+  const token = localStorage.getItem("access");
+  return token ? children : <Navigate to="/login" replace state={{ from: location }} />;
 }
 
 export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Public pages */}
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/faq" element={<FAQ />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
 
-        {/* Protected pages */}
-        <Route
-          path="/home"
-          element={
-            <PrivateRoute>
-              <Home />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/faq"
-          element={
-            <PrivateRoute>
-              <FAQ />
-            </PrivateRoute>
-          }
-        />
         <Route
           path="/savedroutes"
           element={

@@ -15,7 +15,7 @@ export default function SavedRoutes() {
     }, []);
 
     const plan = (r) =>
-        navigate(`/home?from=${encodeURIComponent(r.start_location)}&to=${encodeURIComponent(r.end_location)}`);
+        navigate(`/?from=${encodeURIComponent(r.start_location)}&to=${encodeURIComponent(r.end_location)}`);
 
     const remove = async (id) => {
         try {

@@ -70,7 +70,7 @@ function LegRow({ leg, last }) {
     );
 }
 
-export default function JourneyResults({ journey, onSave, saving }) {
+export default function JourneyResults({ journey, onSave, saving, signedIn }) {
     if (journey.status === "none") {
         return (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
@@ -120,7 +120,7 @@ export default function JourneyResults({ journey, onSave, saving }) {
                 disabled={saving}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
-                {saving ? "Saving…" : "Save this route"}
+                {saving ? "Saving…" : signedIn ? "Save this route" : "Sign in to save this route"}
             </button>
         </section>
     );

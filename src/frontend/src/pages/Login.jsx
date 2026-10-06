@@ -1,8 +1,9 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 export default function Login() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [formData, setFormData] = useState({ username: "", password: "" });
 
     const handleChange = (e) => {
@@ -26,8 +27,8 @@ export default function Login() {
                 // store token under "access" for consistency
                 localStorage.setItem("access", data.access);
 
-                // go straight to home (no alert)
-                navigate("/home");
+                const from = location.state?.from;
+                navigate(from ? `${from.pathname}${from.search ?? ""}` : "/", { replace: true });
             } else {
                 alert(data.error || "Login failed");
             }

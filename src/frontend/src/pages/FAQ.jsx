@@ -41,7 +41,7 @@ export default function FAQ() {
                 <h1 className="text-3xl sm:text-4xl font-bold mb-6 text-[#001f4d]">Help and FAQs</h1>
 
                 <button
-                    onClick={() => navigate("/home")}
+                    onClick={() => navigate("/")}
                     className="mb-6 bg-[#001f4d] text-white py-2 px-4 rounded hover:bg-[#003366]"
                 >
                     ← Back to Home

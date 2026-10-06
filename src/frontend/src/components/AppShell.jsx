@@ -1,13 +1,13 @@
-import { useMemo } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { getToken } from "../lib/api";
 
 const NAV = [
-    { to: "/home", label: "Plan" },
-    { to: "/savedroutes", label: "Saved" },
+    { to: "/", label: "Plan", end: true },
+    { to: "/savedroutes", label: "Saved", account: true },
     { to: "/faq", label: "FAQ" },
-    { to: "/settings", label: "Settings" },
+    { to: "/settings", label: "Settings", account: true },
 ];
 
 const linkClass = ({ isActive }) =>
@@ -18,18 +18,20 @@ const linkClass = ({ isActive }) =>
 export default function AppShell({ children }) {
     const navigate = useNavigate();
 
+    const [token, setToken] = useState(getToken);
+
     const isSuperUser = useMemo(() => {
-        const token = getToken();
         if (!token) return false;
         try {
             return Boolean(jwtDecode(token).is_superuser);
         } catch {
             return false;
         }
-    }, []);
+    }, [token]);
 
     const signOut = () => {
         localStorage.removeItem("access");
+        setToken(null);
         navigate("/");
     };
 
@@ -41,8 +43,8 @@ export default function AppShell({ children }) {
                     <span className="text-base font-semibold tracking-tight">PathPilot</span>
                 </div>
                 <nav aria-label="Primary" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-                    {NAV.map((item) => (
-                        <NavLink key={item.to} to={item.to} className={linkClass}>
+                    {NAV.filter((item) => token || !item.account).map((item) => (
+                        <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
                             {item.label}
                         </NavLink>
                     ))}
@@ -58,13 +60,30 @@ export default function AppShell({ children }) {
                             Admin
                         </a>
                     )}
-                    <button
-                        type="button"
-                        onClick={signOut}
-                        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                    >
-                        Sign out
-                    </button>
+                    {token ? (
+                        <button
+                            type="button"
+                            onClick={signOut}
+                            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                        >
+                            Sign out
+                        </button>
+                    ) : (
+                        <>
+                            <Link
+                                to="/login"
+                                className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                                Sign in
+                            </Link>
+                            <Link
+                                to="/signup"
+                                className="hidden rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 sm:block"
+                            >
+                                Sign up
+                            </Link>
+                        </>
+                    )}
                 </div>
             </header>
             <main className="flex min-h-0 flex-1 flex-col">{children}</main>

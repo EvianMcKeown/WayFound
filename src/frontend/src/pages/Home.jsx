@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import AppShell from "../components/AppShell";
 import JourneyResults from "../components/JourneyResults";
 import MapView from "../components/MapView";
 import PlaceSearch from "../components/PlaceSearch";
-import { apiFetch } from "../lib/api";
+import { apiFetch, getToken } from "../lib/api";
 import { buildLegs, summarise } from "../lib/journey";
 import { DAYS, nowAsPlannerInput } from "../lib/time";
 
@@ -13,6 +13,8 @@ const fieldClass =
 
 export default function Home() {
     const [params] = useSearchParams();
+    const navigate = useNavigate();
+    const location = useLocation();
     const [origin, setOrigin] = useState(null);
     const [destination, setDestination] = useState(null);
     const [{ day, time }, setWhen] = useState(nowAsPlannerInput);
@@ -95,6 +97,10 @@ export default function Home() {
     };
 
     const save = async () => {
+        if (!getToken()) {
+            navigate("/login", { state: { from: location } });
+            return;
+        }
         setSaving(true);
         try {
             await apiFetch("/api/saved-routes/", {
@@ -222,7 +228,7 @@ export default function Home() {
                         </p>
                     )}
 
-                    {journey && <JourneyResults journey={journey} onSave={save} saving={saving} />}
+                    {journey && <JourneyResults journey={journey} onSave={save} saving={saving} signedIn={Boolean(getToken())} />}
                 </aside>
 
                 <div className="min-h-[50vh] flex-1 lg:min-h-0">
