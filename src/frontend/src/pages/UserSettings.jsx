@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE } from "../lib/api";
 
 export default function UserSettings() {
     const navigate = useNavigate();
@@ -24,7 +25,7 @@ export default function UserSettings() {
             return;
         }
 
-        fetch("http://localhost:8000/api/user/", {
+        fetch(`${API_BASE}/api/user/`, {
             headers: { Authorization: `Bearer ${token}` },
         })
             .then((res) => {
@@ -47,7 +48,7 @@ export default function UserSettings() {
 
     const handleProfileUpdate = async (e) => {
         e.preventDefault();
-        const res = await fetch("http://localhost:8000/api/user/", {
+        const res = await fetch(`${API_BASE}/api/user/`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",
@@ -61,7 +62,7 @@ export default function UserSettings() {
     const handlePasswordChange = async (e) => {
         e.preventDefault();
         try {
-            const res = await fetch("http://localhost:8000/api/user/change_password/", {
+            const res = await fetch(`${API_BASE}/api/user/change_password/`, {
                 method: "PUT", // ✅ backend expects PUT
                 headers: {
                     "Content-Type": "application/json",

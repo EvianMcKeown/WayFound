@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
-import { getToken } from "../lib/api";
+import { API_BASE, getToken } from "../lib/api";
 
 const NAV = [
     { to: "/", label: "Plan", end: true },
@@ -52,7 +52,7 @@ export default function AppShell({ children }) {
                 <div className="flex items-center gap-2">
                     {isSuperUser && (
                         <a
-                            href={`${import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000"}/admin/`}
+                            href={`${API_BASE}/admin/`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hidden rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 sm:block"
