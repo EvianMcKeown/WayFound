@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .geocode import GeocodeView
 from .views import (
     signup,
     update_preferences,
@@ -37,6 +38,7 @@ urlpatterns = [
     path("user/change_password/", ChangePasswordView.as_view(), name="change-password"),
     # Routes & Preferences
     path("plan/", PlanJourneyView.as_view(), name="plan-journey"),
+    path("geocode/", GeocodeView.as_view(), name="geocode"),
     path("preferences/", update_preferences, name="update_preferences"),
     # All registered API endpoints
     path("", include(router.urls)),

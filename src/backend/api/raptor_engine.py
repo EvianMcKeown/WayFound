@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import csv
 import math
 import threading
+from pathlib import Path
 from typing import Any, List, Dict, Tuple, Optional
 from datetime import datetime, timedelta
 
@@ -17,6 +19,8 @@ from algorithm_prototype.raptor import (
     Trip,
     Transfer,
     MAX_WALK_DIST,
+    AREA_RADIUS_M,
+    AREA_WALK_ALLOWANCE_M,
 )
 from algorithm_prototype.dijkstra import dijkstra_algo, _reconstruct_dijkstra_path
 
@@ -140,6 +144,8 @@ def _create_walk_transfer_step(
     """
     to_stop = stops[to_stop_id]
     distance_m = hf.haversine(from_lat, from_lon, to_stop.lat, to_stop.lon)
+    if to_stop.approximate:
+        distance_m += AREA_WALK_ALLOWANCE_M
 
     # Assume walking speed of 5 km/h (83.33 m/min)
     walk_time_minutes = max(1, int(distance_m / 83.33))
@@ -165,7 +171,16 @@ def _serialize_stop(s: Stop) -> Dict[str, Any]:
         "lat": s.lat,
         "lon": s.lon,
         "mode": s.mode,
+        "approximate": bool(getattr(s, "approximate", False)),
     }
+
+
+def approximate_stop_ids(gtfs_folder: str) -> set:
+    path = Path(gtfs_folder) / "sources" / "stop_provenance.csv"
+    if not path.exists():
+        return set()
+    with open(path, newline="", encoding="utf-8") as f:
+        return {r["stop_id"] for r in csv.DictReader(f) if r.get("approximate") == "1"}
 
 
 def _serialize_route(r: Route) -> Dict[str, Any]:
@@ -201,6 +216,23 @@ def _path_objs_to_json_safe(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]
             s["route"] = _serialize_route(step["route_object"])
         if "trip_object" in step and step["trip_object"]:
             s["trip"] = _serialize_trip(step["trip_object"])
+        route_obj, bp, dp = (
+            step.get("route_object"),
+            step.get("board_pos"),
+            step.get("disembark_pos"),
+        )
+        if route_obj and isinstance(bp, int) and isinstance(dp, int) and bp <= dp:
+            ride = route_obj.stops[bp : dp + 1]
+            s["shape"] = [[st.lon, st.lat] for st in ride]
+            s["stops_along"] = [
+                {
+                    "name": getattr(st, "name", ""),
+                    "lat": st.lat,
+                    "lon": st.lon,
+                    "approximate": bool(getattr(st, "approximate", False)),
+                }
+                for st in ride
+            ]
         if "board_stop_object" in step and step["board_stop_object"]:
             s["board_stop"] = _serialize_stop(step["board_stop_object"])
         if "disembark_stop_object" in step and step["disembark_stop_object"]:
@@ -226,6 +258,9 @@ class RaptorEngine:
                 return
             reader = GTFSReader(gtfs_folder=self._gtfs_folder)
             self.stops = reader.stops
+            for stop_id in approximate_stop_ids(self._gtfs_folder):
+                if stop_id in self.stops:
+                    self.stops[stop_id].approximate = True
             self.routes = reader.routes
             # build walk transfers (if non-default max_walk_distance is used, transfers need to be
             # created in the planner call)
@@ -409,6 +444,7 @@ class RaptorEngine:
             "result": result,
             "path": path,
             "path_objs": _path_objs_to_json_safe(path_objs),
+            "area_radius_m": AREA_RADIUS_M,
         }
 
 

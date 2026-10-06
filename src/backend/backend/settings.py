@@ -120,7 +120,11 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.AllowAny",  # for now, open API; tighten later
     ),
+    "DEFAULT_THROTTLE_RATES": {"geocode": "60/min"},
 }
+
+GEOCODER_URL = "https://photon.komoot.io/api/"
+GEOCODER_USER_AGENT = "PathPilot-capstone/1.0"
 
 
 # ----------------------------

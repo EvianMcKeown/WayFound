@@ -81,6 +81,7 @@ class PlanRequestSerializer(serializers.Serializer):
     debug = serializers.BooleanField(required=False, default=False)
     use_dijkstra = serializers.BooleanField(required=False, default=False)
     minimize_walking = serializers.BooleanField(required=False, default=False)
+    minimize_stops = serializers.BooleanField(required=False, default=False)
     minimize_number_of_transfers = serializers.BooleanField(
         required=False, default=False
     )
