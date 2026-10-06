@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>WayFound</title>
+  <rect x="1" y="1" width="62" height="62" rx="15" fill="#f1f6fe" stroke="#e1ecff" stroke-width="1.5"/>
+  <path d="M17 50 L17 41 C17 34 22 31.5 30 30.5" fill="none" stroke="#2c71f8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="17" cy="50" r="5" fill="#9bbeff"/>
+  <circle cx="36.5" cy="26.5" r="2.3" fill="#2c71f8"/>
+  <circle cx="41" cy="23" r="2.3" fill="#2c71f8"/>
+  <circle cx="30" cy="30.5" r="6" fill="#2c71f8"/><circle cx="30" cy="30.5" r="2.4" fill="#ffffff"/>
+  <circle cx="47" cy="17" r="9" fill="#104fca"/><circle cx="47" cy="17" r="3.6" fill="#ffffff"/>
+</svg>
