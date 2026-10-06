@@ -4,6 +4,8 @@
 
 A Django-based public transport journey planning web application built on the [RAPTOR algorithm](https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf) for fast and efficient transit routing.  
 
+![WayFound planner: a Metrorail journey from Cape Town Station to Claremont on the map, with the trip's legs listed in the left panel](docs/screenshots/planner.png)
+
 ---
 
 ## Description
