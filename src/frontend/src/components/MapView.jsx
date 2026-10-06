@@ -1,0 +1,204 @@
+import { useEffect, useRef } from "react";
+import * as maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+import { DEFAULT_AREA_RADIUS_M, MODE_STYLE, approximateAreas, journeyStops } from "../lib/journey";
+
+maplibregl.setWorkerUrl(workerUrl);
+
+const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || "https://tiles.openfreemap.org/styles/liberty";
+const CAPE_TOWN = [18.4241, -33.9249];
+
+function pin(color) {
+    const el = document.createElement("div");
+    el.style.cssText = `width:16px;height:16px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)`;
+    return el;
+}
+
+function circle([lon, lat], metres, steps = 40) {
+    const dLat = metres / 111320;
+    const dLon = metres / (111320 * Math.cos((lat * Math.PI) / 180));
+    const ring = Array.from({ length: steps + 1 }, (_, i) => {
+        const a = (2 * Math.PI * i) / steps;
+        return [lon + dLon * Math.cos(a), lat + dLat * Math.sin(a)];
+    });
+    return { type: "Polygon", coordinates: [ring] };
+}
+
+function addOverlayLayers(map) {
+    const empty = { type: "FeatureCollection", features: [] };
+    map.addSource("areas", { type: "geojson", data: empty });
+    map.addLayer({ id: "areas-fill", type: "fill", source: "areas", paint: { "fill-color": "#f59e0b", "fill-opacity": 0.18 } });
+    map.addLayer({
+        id: "areas-outline",
+        type: "line",
+        source: "areas",
+        paint: { "line-color": "#d97706", "line-width": 1.5, "line-dasharray": [2, 2] },
+    });
+    map.addSource("legs", { type: "geojson", data: empty });
+    map.addLayer({
+        id: "legs-casing",
+        type: "line",
+        source: "legs",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#ffffff", "line-width": 8 },
+    });
+    for (const [kind, style] of Object.entries(MODE_STYLE)) {
+        map.addLayer({
+            id: `legs-${kind}`,
+            type: "line",
+            source: "legs",
+            filter: ["==", ["get", "kind"], kind],
+            layout: { "line-cap": style.dash ? "butt" : "round", "line-join": "round" },
+            paint: {
+                "line-color": style.color,
+                "line-width": 5,
+                ...(style.dash ? { "line-dasharray": [1.2, 1.6] } : {}),
+            },
+        });
+    }
+    map.addSource("stops", { type: "geojson", data: empty });
+    map.addLayer({
+        id: "stops-dot",
+        type: "circle",
+        source: "stops",
+        paint: {
+            "circle-radius": ["case", ["==", ["get", "role"], "end"], 6, 3.5],
+            "circle-color": "#ffffff",
+            "circle-stroke-width": 2,
+            "circle-stroke-color": ["case", ["get", "approx"], "#d97706", "#1e293b"],
+        },
+    });
+    map.addLayer({
+        id: "stops-label",
+        type: "symbol",
+        source: "stops",
+        filter: ["==", ["get", "role"], "end"],
+        minzoom: 12,
+        layout: {
+            "text-field": ["get", "name"],
+            "text-font": ["Noto Sans Regular"],
+            "text-size": 12,
+            "text-offset": [0, 1.1],
+            "text-anchor": "top",
+            "text-optional": true,
+        },
+        paint: { "text-color": "#0f172a", "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
+    });
+}
+
+export default function MapView({ origin, destination, legs, areaRadius = DEFAULT_AREA_RADIUS_M }) {
+    const containerRef = useRef(null);
+    const mapRef = useRef(null);
+    const markersRef = useRef([]);
+    const readyRef = useRef(false);
+    const propsRef = useRef({ origin, destination, legs, areaRadius });
+    propsRef.current = { origin, destination, legs, areaRadius };
+
+    const draw = () => {
+        const map = mapRef.current;
+        if (!map || !readyRef.current) return;
+        const { origin, destination, legs, areaRadius } = propsRef.current;
+
+        map.getSource("legs").setData({
+            type: "FeatureCollection",
+            features: legs.map((l) => ({
+                type: "Feature",
+                properties: { kind: l.kind },
+                geometry: { type: "LineString", coordinates: l.shape ?? [l.from, l.to] },
+            })),
+        });
+
+        const stops = journeyStops(legs);
+        map.getSource("areas").setData({
+            type: "FeatureCollection",
+            features: approximateAreas(stops).map((a) => ({
+                type: "Feature",
+                properties: { name: a.name },
+                geometry: circle(a.coord, areaRadius),
+            })),
+        });
+        map.getSource("stops").setData({
+            type: "FeatureCollection",
+            features: stops.map((s) => ({
+                type: "Feature",
+                properties: { name: s.name, approx: s.approx, role: s.role },
+                geometry: { type: "Point", coordinates: s.coord },
+            })),
+        });
+
+        markersRef.current.forEach((m) => m.remove());
+        markersRef.current = [];
+        const bounds = new maplibregl.LngLatBounds();
+        const addPin = (place, color) => {
+            if (!place) return;
+            markersRef.current.push(
+                new maplibregl.Marker({ element: pin(color) }).setLngLat([place.lon, place.lat]).addTo(map)
+            );
+            bounds.extend([place.lon, place.lat]);
+        };
+        addPin(origin, "#16a34a");
+        addPin(destination, "#dc2626");
+        legs.forEach((l) => (l.shape ?? [l.from, l.to]).forEach((pt) => bounds.extend(pt)));
+
+        if (!bounds.isEmpty()) {
+            map.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: map.loaded() ? 600 : 0 });
+        }
+    };
+
+    useEffect(() => {
+        let map = null;
+        let ro = null;
+        const timer = setTimeout(() => {
+            map = new maplibregl.Map({
+                container: containerRef.current,
+                style: STYLE_URL,
+                center: CAPE_TOWN,
+                zoom: 11,
+            });
+            mapRef.current = map;
+            if (import.meta.env.DEV) {
+                window.__map = map;
+                window.__mapErrors = [];
+                map.on("error", (e) => window.__mapErrors.push(String(e.error?.message ?? e.error)));
+            }
+            map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+
+            map.on("load", () => {
+                addOverlayLayers(map);
+                map.on("click", "stops-dot", (e) => {
+                    const f = e.features[0];
+                    const note = f.properties.approx === true || f.properties.approx === "true"
+                        ? "<br><span style=\"color:#b45309\">Area stop: the bus stops somewhere around here</span>"
+                        : "";
+                    new maplibregl.Popup({ closeButton: false, offset: 10 })
+                        .setLngLat(f.geometry.coordinates)
+                        .setHTML(`<strong></strong>${note}`)
+                        .addTo(map)
+                        .getElement()
+                        .querySelector("strong").textContent = f.properties.name;
+                });
+                map.on("mouseenter", "stops-dot", () => (map.getCanvas().style.cursor = "pointer"));
+                map.on("mouseleave", "stops-dot", () => (map.getCanvas().style.cursor = ""));
+                readyRef.current = true;
+                draw();
+            });
+
+            ro = new ResizeObserver(() => map.resize());
+            ro.observe(containerRef.current);
+        }, 0);
+
+        return () => {
+            clearTimeout(timer);
+            ro?.disconnect();
+            readyRef.current = false;
+            markersRef.current = [];
+            map?.remove();
+            mapRef.current = null;
+        };
+    }, []);
+
+    useEffect(draw, [origin, destination, legs]);
+
+    return <div ref={containerRef} className="h-full w-full" role="region" aria-label="Map" />;
+}
