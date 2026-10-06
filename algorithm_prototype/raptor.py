@@ -17,6 +17,8 @@ MAX_WALK_DIST = 1000  # maximum walkable distance in meters
 WALKING_SPEED = 5 * 1000 / 60  # meters oer minute
 MIN_TRANSFER_TIME = 1  # mins
 EARTH_RADIUS_KM = 6371.0  # Standard Earth radius
+AREA_RADIUS_M = 400
+AREA_WALK_ALLOWANCE_M = AREA_RADIUS_M // 2
 METERS_PER_DEG_LAT = 111111  # Approx. meters per degree lat
 
 
@@ -30,6 +32,7 @@ class Stop:
     lat: float
     lon: float
     name: str = ""
+    approximate: bool = False
 
     earliest_arrival: Dict[int, int] = field(default_factory=dict)  # round -> time
     # earliest arrival time per round, updated in algo
@@ -308,6 +311,7 @@ class helper_functions:
                     continue
                 # perform haversine only on pre-filtered set of stops
                 distance = helper_functions.haversine(s1.lat, s1.lon, s2.lat, s2.lon)
+                distance += AREA_WALK_ALLOWANCE_M * (s1.approximate + s2.approximate)
 
                 if distance <= max_walking_dist:
                     walk_time_minutes = max(

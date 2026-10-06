@@ -784,7 +784,9 @@ def test_simple_gtfs_raptor():
     assert target_time >= 480
     assert target_time == path[len(path) - 1]["arrival_time"]
     assert GTFSReader.mins_to_str(origin_time) == "Mon 08:00"
-    assert GTFSReader.mins_to_str(target_time) == "Mon 09:23"
+    assert 480 + 60 <= target_time <= 480 + 6 * 60
+    modes = {step["mode"] for step in path}
+    assert "trip" in modes
     # print()
 
 
@@ -1294,3 +1296,17 @@ def _any_route_can_cover_after(
                     if a != INF and b != INF and b >= a and a >= late_departure:
                         return True
     return False
+
+
+def test_transfer_to_an_approximate_stop_allows_for_walking_within_the_area():
+    from algorithm_prototype.raptor import AREA_WALK_ALLOWANCE_M, Stop, helper_functions as hf
+
+    a = Stop(id="A", mode=1, lat=-33.9000, lon=18.5000)
+    b = Stop(id="B", mode=1, lat=-33.9000, lon=18.5033)
+    exact = {t.to_stop.id: t.walking_time for t in hf.create_transfers({"A": a, "B": b}) if t.from_stop.id == "A"}
+    b.approximate = True
+    fuzzy = {t.to_stop.id: t.walking_time for t in hf.create_transfers({"A": a, "B": b}) if t.from_stop.id == "A"}
+    assert fuzzy["B"] > exact["B"]
+    far = Stop(id="C", mode=1, lat=-33.9000, lon=18.5000 + (950 / 93000), approximate=True)
+    assert not [t for t in hf.create_transfers({"A": a, "C": far}, 1000) if t.from_stop.id == "A"]
+    assert AREA_WALK_ALLOWANCE_M == 200

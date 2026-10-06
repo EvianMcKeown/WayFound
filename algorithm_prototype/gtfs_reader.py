@@ -244,15 +244,9 @@ class GTFSReader:
                 if trip_id not in trip_stop_times:
                     continue  # Skip trips without stop times
 
-                # for metrorail trips (mr_*), invert the stop order when direction_id == 1
-                is_mr = trip_id.startswith("mr_")
-                reverse_order = is_mr and direction_id == "1"
-
-                # Sort stops by stop_sequence - reverse for metrorail trips with direction_id == 1
                 rows = sorted(
                     trip_stop_times[trip_id],
                     key=lambda x: x["stop_sequence"],
-                    reverse=reverse_order,
                 )
 
                 # Keep duplicates to preserve true sequence
