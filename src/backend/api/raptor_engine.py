@@ -251,6 +251,19 @@ class RaptorEngine:
         self.transfers: List[Transfer] = []
         self.transfer_map: Dict[Tuple[str, str], Transfer] = {}
         self.last_max_walk_distance: int = MAX_WALK_DIST
+        self._transfer_cache: Dict[int, Tuple[List[Transfer], Dict]] = {}
+
+    def _transfers_for(self, max_walk_dist: int) -> Tuple[List[Transfer], Dict]:
+        with self._lock:
+            if max_walk_dist == self.last_max_walk_distance:
+                return self.transfers, self.transfer_map
+            if max_walk_dist not in self._transfer_cache:
+                transfers = hf.create_transfers(self.stops, max_walk_dist)
+                self._transfer_cache[max_walk_dist] = (
+                    transfers,
+                    hf.create_transfer_map(transfers),
+                )
+            return self._transfer_cache[max_walk_dist]
 
     def load(self, custom_max_walk_dist: Optional[int] = None) -> None:
         with self._lock:
@@ -290,16 +303,11 @@ class RaptorEngine:
     ) -> Dict[str, Any]:
         if not self._loaded:
             self.load(custom_max_walk_dist=custom_max_walk_dist)
-        else:
-            # if max_walk_distance changed, rebuild transfers
-            if (custom_max_walk_dist is not None) and (
-                custom_max_walk_dist != self.last_max_walk_distance
-            ):
-                self.transfers = hf.create_transfers(
-                    self.stops, custom_max_walk_dist or MAX_WALK_DIST
-                )
-                self.transfer_map = hf.create_transfer_map(self.transfers)
-                self.last_max_walk_distance = custom_max_walk_dist or MAX_WALK_DIST
+
+        walk_dist = custom_max_walk_dist or self.last_max_walk_distance
+        if minimize_walking:
+            walk_dist = 200
+        transfers, transfer_map = self._transfers_for(walk_dist)
 
         # Find closest stops to source and target coordinates
         try:
@@ -336,9 +344,6 @@ class RaptorEngine:
             }
 
         # Choose algorithm
-        if minimize_walking:
-            self.transfers = hf.create_transfers(self.stops, 200)
-            self.transfer_map = hf.create_transfer_map(self.transfers)
         if minimize_stops:
             # minimize number of transfers by setting max_rounds to a low value
             max_rounds = 3
@@ -347,7 +352,7 @@ class RaptorEngine:
             result, path = dijkstra_algo(
                 stops=self.stops,
                 routes=self.routes,
-                transfers=self.transfers,
+                transfers=transfers,
                 source_id=source_id,
                 target_id=target_id,
                 departure_time=departure_minutes,
@@ -358,7 +363,7 @@ class RaptorEngine:
             result, path = raptor_algo(
                 stops=self.stops,
                 routes=self.routes,
-                transfers=self.transfers,
+                transfers=transfers,
                 source_id=source_id,
                 target_id=target_id,
                 departure_time=departure_minutes,
@@ -431,7 +436,7 @@ class RaptorEngine:
             path=enhanced_path,
             stops_dict=enhanced_stops,
             routes_dict=self.routes,
-            transfers_dict=self.transfer_map,
+            transfers_dict=transfer_map,
         )
 
         # Add virtual stop information to path objects

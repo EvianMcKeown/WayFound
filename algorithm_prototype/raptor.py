@@ -512,6 +512,24 @@ def raptor_algo(
     marked[source_idx] = True
     marked_list = [source_idx]
 
+    for v, walk_time in transfer_adj[source_idx]:
+        arrival = departure_time + max(walk_time, MIN_TRANSFER_TIME)
+        if v != source_idx and arrival < best[v]:
+            best[v] = prev[v] = cur[v] = arrival
+            improved_round[v] = 0
+            predecessor_layers[0][v] = {
+                "prev_idx": source_idx,
+                "arrival_time": arrival,
+                "mode": "transfer",
+                "route_id": None,
+                "trip_id": None,
+                "transfer_time": max(walk_time, MIN_TRANSFER_TIME),
+                "round": 0,
+                "prev_round": 0,
+            }
+            marked[v] = True
+            marked_list.append(v)
+
     # main round
     for k in range(1, max_rounds + 1):
         improved = False
