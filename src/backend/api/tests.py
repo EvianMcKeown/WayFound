@@ -142,3 +142,45 @@ class IssueReportTests(APITestCase):
     def test_throttled_after_five(self):
         codes = [self.client.post("/api/reports/", self.BODY, format="json").status_code for _ in range(6)]
         self.assertEqual(codes, [201] * 5 + [429])
+
+
+class PlanEndpointTests(APITestCase):
+    CT_STATION = (-33.9221, 18.4257)
+    CLAREMONT = (-33.9806, 18.4653)
+
+    def plan(self, a, b, **extra):
+        body = {
+            "source_lat": a[0], "source_lon": a[1], "target_lat": b[0], "target_lon": b[1],
+            "day": 1, "time": "08:00", **extra,
+        }
+        resp = self.client.post("/api/plan/", body, format="json")
+        self.assertEqual(resp.status_code, 200)
+        return resp.data
+
+    def assert_walks_only_at_the_ends(self, steps):
+        moves = [s for s in steps if s["mode"] in ("transfer", "trip")]
+        self.assertEqual(moves[0]["from_stop_id"], "virtual_start")
+        self.assertEqual(moves[-1]["stop_id"], "virtual_end")
+        for a, b in zip(moves, moves[1:]):
+            self.assertFalse(a["mode"] == b["mode"] == "transfer", f"two walks in a row: {a} {b}")
+
+    def test_train_journey_walks_straight_to_the_station(self):
+        for use_dijkstra in (False, True):
+            data = self.plan(self.CT_STATION, self.CLAREMONT, use_dijkstra=use_dijkstra)
+            steps = data["path_objs"]
+            self.assert_walks_only_at_the_ends(steps)
+            rides = [s for s in steps if s["mode"] == "trip"]
+            self.assertEqual(len(rides), 1)
+            self.assertTrue(rides[0]["route_id"].startswith("mr_"))
+
+    def test_access_walk_counts_towards_arrival(self):
+        data = self.plan(self.CT_STATION, self.CLAREMONT)
+        first_walk = next(s for s in data["path_objs"] if s["mode"] == "transfer")
+        self.assertEqual(first_walk["arrival_time"], 1 * 1440 + 8 * 60 + first_walk["transfer_time"])
+
+    def test_nearby_destination_is_a_single_walk(self):
+        data = self.plan(self.CT_STATION, (-33.9250, 18.4230))
+        moves = [s for s in data["path_objs"] if s["mode"] in ("transfer", "trip")]
+        self.assertEqual([(m["mode"], m["from_stop_id"], m["stop_id"]) for m in moves],
+                         [("transfer", "virtual_start", "virtual_end")])
+        self.assertIsNone(data["source_stop"])

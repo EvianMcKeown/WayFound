@@ -190,7 +190,6 @@ class PlanJourneyView(APIView):
         )
 
         # Minimal response
-        target_id = out.get("target_stop", {}).get("id")
         return Response(
             {
                 "earliest_arrival": out.get("earliest_arrival"),

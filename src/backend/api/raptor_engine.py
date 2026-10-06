@@ -19,6 +19,8 @@ from algorithm_prototype.raptor import (
     Trip,
     Transfer,
     MAX_WALK_DIST,
+    MIN_TRANSFER_TIME,
+    WALKING_SPEED,
     AREA_RADIUS_M,
     AREA_WALK_ALLOWANCE_M,
 )
@@ -120,48 +122,33 @@ def find_closest_stop(
     return closest_pair_recursive(points_sorted)
 
 
-def _create_walk_transfer_step(
-    from_lat: float,
-    from_lon: float,
-    to_stop_id: str,
-    stops: Dict[str, Stop],
-    departure_time: int,
-    virtual_stop_id: str = None,
-) -> Dict[str, Any]:
-    """
-    Create a walk transfer step for the path.
+VIRTUAL_START = "virtual_start"
+VIRTUAL_END = "virtual_end"
 
-    Args:
-        from_lat: Starting latitude
-        from_lon: Starting longitude
-        to_stop_id: Target stop ID
-        stops: Dictionary of stops
-        departure_time: Time when the walk starts
-        virtual_stop_id: ID for the virtual starting location
 
-    Returns:
-        Dictionary representing the walk transfer step
-    """
-    to_stop = stops[to_stop_id]
-    distance_m = hf.haversine(from_lat, from_lon, to_stop.lat, to_stop.lon)
-    if to_stop.approximate:
-        distance_m += AREA_WALK_ALLOWANCE_M
+def _walk_minutes(distance_m: float) -> int:
+    return max(MIN_TRANSFER_TIME, math.ceil(distance_m / WALKING_SPEED))
 
-    # Assume walking speed of 5 km/h (83.33 m/min)
-    walk_time_minutes = max(1, int(distance_m / 83.33))
 
-    # Create virtual stop for the start/end location
-    if virtual_stop_id is None:
-        virtual_stop_id = f"lat:{from_lat},lon:{from_lon}"
-
-    return {
-        "mode": "transfer",
-        "from_stop_id": virtual_stop_id,
-        "stop_id": to_stop_id,
-        "arrival_time": departure_time + walk_time_minutes,
-        "transfer_time": walk_time_minutes,
-        "distance_m": distance_m,
-    }
+def _access_transfers(
+    place: Stop, stops: Dict[str, Stop], radius_m: float, outbound: bool
+) -> List[Transfer]:
+    walks: List[Tuple[float, Stop]] = []
+    nearest: Optional[Tuple[float, Stop]] = None
+    for st in stops.values():
+        d = hf.haversine(place.lat, place.lon, st.lat, st.lon)
+        if st.approximate:
+            d += AREA_WALK_ALLOWANCE_M
+        if nearest is None or d < nearest[0]:
+            nearest = (d, st)
+        if d <= radius_m:
+            walks.append((d, st))
+    if nearest and not any(st.id == nearest[1].id for _, st in walks):
+        walks.append(nearest)
+    return [
+        Transfer(place, st, _walk_minutes(d)) if outbound else Transfer(st, place, _walk_minutes(d))
+        for d, st in walks
+    ]
 
 
 def _serialize_stop(s: Stop) -> Dict[str, Any]:
@@ -309,144 +296,73 @@ class RaptorEngine:
             walk_dist = 200
         transfers, transfer_map = self._transfers_for(walk_dist)
 
-        # Find closest stops to source and target coordinates
-        try:
-            source_id, source_dist = find_closest_stop(
-                float(source_lat), float(source_lon), self.stops
-            )
-            target_id, target_dist = find_closest_stop(
-                float(target_lat), float(target_lon), self.stops
-            )
-
-            if debug:
-                print(
-                    f"Closest source stop: {source_id} (distance: {source_dist:.1f}m)"
-                )
-                print(
-                    f"Closest target stop: {target_id} (distance: {target_dist:.1f}m)"
-                )
-
-        except ValueError as e:
+        source_lat, source_lon = float(source_lat), float(source_lon)
+        target_lat, target_lon = float(target_lat), float(target_lon)
+        if not self.stops:
             return {
-                "error": f"Failed to find closest stops: {str(e)}",
+                "error": "No stops loaded",
                 "result": {},
                 "path": [],
                 "path_objs": [],
             }
 
-        # Validate stops exist
-        if source_id not in self.stops or target_id not in self.stops:
-            return {
-                "error": f"Invalid stops found: source={source_id}, target={target_id}",
-                "result": {},
-                "path": [],
-                "path_objs": [],
-            }
+        origin = Stop(id=VIRTUAL_START, name="Starting Location", lat=source_lat, lon=source_lon, mode=0)
+        destination = Stop(id=VIRTUAL_END, name="Destination", lat=target_lat, lon=target_lon, mode=0)
+        access = _access_transfers(origin, self.stops, walk_dist, outbound=True)
+        egress = _access_transfers(destination, self.stops, walk_dist, outbound=False)
+        extra = access + egress
+        direct_m = hf.haversine(source_lat, source_lon, target_lat, target_lon)
+        if direct_m <= walk_dist:
+            extra.append(Transfer(origin, destination, _walk_minutes(direct_m)))
 
-        # Choose algorithm
+        search_stops = dict(self.stops)
+        search_stops[VIRTUAL_START] = origin
+        search_stops[VIRTUAL_END] = destination
+        search_transfers = transfers + extra
+        search_transfer_map = dict(transfer_map)
+        search_transfer_map.update(hf.create_transfer_map(extra))
+
         if minimize_stops:
             # minimize number of transfers by setting max_rounds to a low value
             max_rounds = 3
 
-        if use_dijkstra:
-            result, path = dijkstra_algo(
-                stops=self.stops,
-                routes=self.routes,
-                transfers=transfers,
-                source_id=source_id,
-                target_id=target_id,
-                departure_time=departure_minutes,
-                max_rounds=max_rounds,
-                debug=debug,
-            )
-        else:
-            result, path = raptor_algo(
-                stops=self.stops,
-                routes=self.routes,
-                transfers=transfers,
-                source_id=source_id,
-                target_id=target_id,
-                departure_time=departure_minutes,
-                max_rounds=max_rounds,
-                debug=debug,
-            )
-
-        # Get earliest arrival at target
-        earliest_arrival = result.get(target_id, INF)
-
-        # Create enhanced path with walk transfers
-        enhanced_path = []
-
-        if path:  # Only add transfers if we have a valid path
-            # Add initial walk transfer at the beginning
-            initial_walk_step = _create_walk_transfer_step(
-                source_lat,
-                source_lon,
-                source_id,
-                self.stops,
-                departure_minutes,
-                "virtual_start",
-            )
-            enhanced_path.append(initial_walk_step)
-
-            # Add the original path steps
-            enhanced_path.extend(path)
-
-            # Add final walk transfer at the end
-            if earliest_arrival != INF:
-                final_walk_step = _create_walk_transfer_step(
-                    target_lat,
-                    target_lon,
-                    target_id,
-                    self.stops,
-                    earliest_arrival,
-                    "virtual_end",
-                )
-                # Reverse the direction for final walk (from stop to destination)
-                final_walk_step["from_stop_id"] = target_id
-                final_walk_step["stop_id"] = "virtual_end"
-                enhanced_path.append(final_walk_step)
-
-                # Update earliest arrival to include final walk
-                earliest_arrival = final_walk_step["arrival_time"]
-
-        # Create virtual stops for path reconstruction
-        virtual_start_stop = Stop(
-            id="virtual_start",
-            name="Starting Location",
-            lat=source_lat,
-            lon=source_lon,
-            mode=0,  # Walking
-        )
-        virtual_end_stop = Stop(
-            id="virtual_end",
-            name="Destination",
-            lat=target_lat,
-            lon=target_lon,
-            mode=0,  # Walking
+        algo = dijkstra_algo if use_dijkstra else raptor_algo
+        result, path = algo(
+            stops=search_stops,
+            routes=self.routes,
+            transfers=search_transfers,
+            source_id=VIRTUAL_START,
+            target_id=VIRTUAL_END,
+            departure_time=departure_minutes,
+            max_rounds=max_rounds,
+            debug=debug,
         )
 
-        # Enhanced stops dictionary for path reconstruction
-        enhanced_stops = dict(self.stops)
-        enhanced_stops["virtual_start"] = virtual_start_stop
-        enhanced_stops["virtual_end"] = virtual_end_stop
+        earliest_arrival = result.get(VIRTUAL_END, INF)
+        path = path or []
+        if earliest_arrival == INF:
+            path = []
 
-        # Enrich with objects (board_pos/disembark_pos aware), then make JSON-safe
         path_objs = reconstruct_path_objs(
-            path=enhanced_path,
-            stops_dict=enhanced_stops,
+            path=path,
+            stops_dict=search_stops,
             routes_dict=self.routes,
-            transfers_dict=transfer_map,
+            transfers_dict=search_transfer_map,
         )
 
-        # Add virtual stop information to path objects
-        # path_objs = _add_virtual_stop_info_to_path_objs(path_objs, virtual_stops)
+        rides = [step for step in path if step.get("mode") == "trip"]
+
+        def used_stop(stop_id, lat, lon):
+            if stop_id is None:
+                return None
+            st = self.stops[stop_id]
+            return {"id": stop_id, "distance_m": hf.haversine(lat, lon, st.lat, st.lon)}
 
         return {
             "earliest_arrival": earliest_arrival if earliest_arrival != INF else None,
-            "source_stop": {"id": source_id, "distance_m": source_dist},
-            "target_stop": {"id": target_id, "distance_m": target_dist},
-            "result": result,
+            "source_stop": used_stop(rides[0]["from_stop_id"] if rides else None, source_lat, source_lon),
+            "target_stop": used_stop(rides[-1]["stop_id"] if rides else None, target_lat, target_lon),
+            "result": {k: v for k, v in result.items() if k not in (VIRTUAL_START, VIRTUAL_END)},
             "path": path,
             "path_objs": _path_objs_to_json_safe(path_objs),
             "area_radius_m": AREA_RADIUS_M,
