@@ -1,0 +1,4 @@
+# Only needed to run the data pipeline scripts in this folder (not the web app).
+openpyxl            # prasa_parse.py / prasa_build.py / prasa_verify.py
+mapbox-vector-tile  # validate_gtfs.py --water
+shapely             # validate_gtfs.py --water
