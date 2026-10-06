@@ -28,12 +28,12 @@ function circle([lon, lat], metres, steps = 40) {
 function addOverlayLayers(map) {
     const empty = { type: "FeatureCollection", features: [] };
     map.addSource("areas", { type: "geojson", data: empty });
-    map.addLayer({ id: "areas-fill", type: "fill", source: "areas", paint: { "fill-color": "#f59e0b", "fill-opacity": 0.18 } });
+    map.addLayer({ id: "areas-fill", type: "fill", source: "areas", paint: { "fill-color": "#d9b45a", "fill-opacity": 0.22 } });
     map.addLayer({
         id: "areas-outline",
         type: "line",
         source: "areas",
-        paint: { "line-color": "#d97706", "line-width": 1.5, "line-dasharray": [2, 2] },
+        paint: { "line-color": "#9a7a2e", "line-width": 1.5, "line-dasharray": [2, 2] },
     });
     map.addSource("legs", { type: "geojson", data: empty });
     map.addLayer({
@@ -66,7 +66,7 @@ function addOverlayLayers(map) {
             "circle-radius": ["case", ["==", ["get", "role"], "end"], 6, 3.5],
             "circle-color": "#ffffff",
             "circle-stroke-width": 2,
-            "circle-stroke-color": ["case", ["get", "approx"], "#d97706", "#1e293b"],
+            "circle-stroke-color": ["case", ["get", "approx"], "#9a7a2e", "#1a1f1a"],
         },
     });
     map.addLayer({
@@ -83,17 +83,33 @@ function addOverlayLayers(map) {
             "text-anchor": "top",
             "text-optional": true,
         },
-        paint: { "text-color": "#0f172a", "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
+        paint: { "text-color": "#1a1f1a", "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
     });
 }
 
-export default function MapView({ origin, destination, legs, areaRadius = DEFAULT_AREA_RADIUS_M }) {
+export default function MapView({
+    origin,
+    destination,
+    legs,
+    areaRadius = DEFAULT_AREA_RADIUS_M,
+    insetLeft = 0,
+    insetTop = 0,
+}) {
     const containerRef = useRef(null);
     const mapRef = useRef(null);
     const markersRef = useRef([]);
     const readyRef = useRef(false);
-    const propsRef = useRef({ origin, destination, legs, areaRadius });
-    propsRef.current = { origin, destination, legs, areaRadius };
+    const propsRef = useRef({ origin, destination, legs, areaRadius, insetLeft, insetTop });
+    propsRef.current = { origin, destination, legs, areaRadius, insetLeft, insetTop };
+
+    const applyInsets = () => {
+        const map = mapRef.current;
+        if (!map) return;
+        const { insetLeft, insetTop } = propsRef.current;
+        map.setPadding({ left: insetLeft, top: insetTop, right: 0, bottom: 0 });
+        const topRight = containerRef.current?.querySelector(".maplibregl-ctrl-top-right");
+        if (topRight) topRight.style.top = `${insetTop}px`;
+    };
 
     const draw = () => {
         const map = mapRef.current;
@@ -137,8 +153,8 @@ export default function MapView({ origin, destination, legs, areaRadius = DEFAUL
             );
             bounds.extend([place.lon, place.lat]);
         };
-        addPin(origin, "#16a34a");
-        addPin(destination, "#dc2626");
+        addPin(origin, "#272f28");
+        addPin(destination, "#108418");
         legs.forEach((l) => (l.shape ?? [l.from, l.to]).forEach((pt) => bounds.extend(pt)));
 
         if (!bounds.isEmpty()) {
@@ -163,13 +179,14 @@ export default function MapView({ origin, destination, legs, areaRadius = DEFAUL
                 map.on("error", (e) => window.__mapErrors.push(String(e.error?.message ?? e.error)));
             }
             map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+            applyInsets();
 
             map.on("load", () => {
                 addOverlayLayers(map);
                 map.on("click", "stops-dot", (e) => {
                     const f = e.features[0];
                     const note = f.properties.approx === true || f.properties.approx === "true"
-                        ? "<br><span style=\"color:#b45309\">Area stop: the bus stops somewhere around here</span>"
+                        ? "<br><span style=\"color:#7a5f1f\">Area stop: the bus stops somewhere around here</span>"
                         : "";
                     new maplibregl.Popup({ closeButton: false, offset: 10 })
                         .setLngLat(f.geometry.coordinates)
@@ -197,6 +214,8 @@ export default function MapView({ origin, destination, legs, areaRadius = DEFAUL
             mapRef.current = null;
         };
     }, []);
+
+    useEffect(applyInsets, [insetLeft, insetTop]);
 
     useEffect(draw, [origin, destination, legs]);
 

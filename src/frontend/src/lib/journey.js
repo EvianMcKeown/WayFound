@@ -1,7 +1,7 @@
 export const MODE_STYLE = {
-    walk: { label: "Walk", color: "#64748b", dash: true },
-    bus: { label: "Bus", color: "#2563eb", dash: false },
-    rail: { label: "Train", color: "#059669", dash: false },
+    walk: { label: "Walk", color: "#647865", dash: true },
+    bus: { label: "Bus", color: "#108418", dash: false },
+    rail: { label: "Train", color: "#272f28", dash: false },
 };
 
 const coord = (stop) => (stop ? [stop.lon, stop.lat] : null);
@@ -52,6 +52,8 @@ export function buildLegs(pathObjs, origin, destination) {
                 toApprox: !!alightStop?.approximate,
                 along: step.stops_along ?? [],
                 routeName: step.route?.name || step.route_id,
+                routeId: step.route_id,
+                tripId: step.trip_id,
                 stops: step.disembark_pos != null && step.board_pos != null
                     ? step.disembark_pos - step.board_pos
                     : null,

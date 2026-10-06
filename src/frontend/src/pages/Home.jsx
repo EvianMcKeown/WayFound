@@ -1,15 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import AppShell from "../components/AppShell";
+import AppShell, { HEADER_HEIGHT_PX } from "../components/AppShell";
 import JourneyResults from "../components/JourneyResults";
 import MapView from "../components/MapView";
 import PlaceSearch from "../components/PlaceSearch";
-import { apiFetch, getToken } from "../lib/api";
+import { apiFetch } from "../lib/api";
+import { useSession } from "../lib/auth";
 import { buildLegs, summarise } from "../lib/journey";
+import { readPlannerLink } from "../lib/plannerLink";
 import { DAYS, nowAsPlannerInput } from "../lib/time";
+import {
+    alertClass,
+    buttonClass,
+    fieldClass,
+    labelClass,
+    panelClass,
+    segmentClass,
+    segmentGroupClass,
+} from "../lib/ui";
 
-const fieldClass =
-    "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20";
+const OVERLAY_QUERY = "(min-width: 1024px)";
+const PANEL_WIDTH_PX = 384;
+
+function useMediaQuery(query) {
+    const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+    useEffect(() => {
+        const mq = window.matchMedia(query);
+        const onChange = () => setMatches(mq.matches);
+        mq.addEventListener("change", onChange);
+        return () => mq.removeEventListener("change", onChange);
+    }, [query]);
+    return matches;
+}
 
 export default function Home() {
     const [params] = useSearchParams();
@@ -21,12 +43,16 @@ export default function Home() {
     const [minimizeWalking, setMinimizeWalking] = useState(false);
     const [minimizeStops, setMinimizeStops] = useState(false);
     const [useDijkstra, setUseDijkstra] = useState(false);
+    const session = useSession();
+    const optionsTouched = useRef(false);
 
     const [planning, setPlanning] = useState(false);
     const [journey, setJourney] = useState(null);
     const [message, setMessage] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [savedId, setSavedId] = useState(null);
     const planCtrl = useRef(null);
+    const overlay = useMediaQuery(OVERLAY_QUERY);
 
     const legs = useMemo(() => journey?.legs ?? [], [journey]);
 
@@ -37,6 +63,16 @@ export default function Home() {
 
         const [hh, mm] = time.split(":").map(Number);
         const departure = day * 1440 + hh * 60 + mm;
+
+        const request = {
+            origin: from,
+            destination: to,
+            day,
+            time,
+            minimize_walking: minimizeWalking,
+            minimize_stops: minimizeStops,
+            use_dijkstra: useDijkstra,
+        };
 
         setPlanning(true);
         setMessage(null);
@@ -59,10 +95,11 @@ export default function Home() {
             });
             const pathObjs = data.path_objs || [];
             if (data.earliest_arrival == null || pathObjs.length === 0) {
-                setJourney({ status: "none" });
+                setJourney({ status: "none", request });
                 return;
             }
             const built = buildLegs(pathObjs, from, to);
+            setSavedId(null);
             setJourney({
                 status: "ok",
                 legs: built,
@@ -71,6 +108,7 @@ export default function Home() {
                 summary: summarise(built, departure, data.earliest_arrival),
                 algorithm: data.algorithm_used,
                 areaRadius: data.area_radius_m,
+                request,
             });
         } catch (err) {
             if (err.name === "AbortError") return;
@@ -96,19 +134,47 @@ export default function Home() {
         setJourney(null);
     };
 
+    useEffect(() => {
+        if (!session) return;
+        let cancelled = false;
+        apiFetch("/api/preferences/", { auth: true })
+            .then((p) => {
+                if (cancelled || optionsTouched.current) return;
+                setMinimizeWalking(Boolean(p.minimize_walking));
+                setMinimizeStops(Boolean(p.minimize_stops));
+            })
+            .catch(() => {});
+        return () => {
+            cancelled = true;
+        };
+    }, [session?.username]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const setOption = (setter) => (e) => {
+        optionsTouched.current = true;
+        setter(e.target.checked);
+    };
+
     const save = async () => {
-        if (!getToken()) {
+        if (!session) {
             navigate("/login", { state: { from: location } });
             return;
         }
         setSaving(true);
         try {
-            await apiFetch("/api/saved-routes/", {
+            const { request } = journey;
+            const saved = await apiFetch("/api/saved-routes/", {
                 method: "POST",
                 auth: true,
-                body: { start_location: origin.label, end_location: destination.label },
+                body: {
+                    start_location: request.origin.label,
+                    end_location: request.destination.label,
+                    origin_lat: request.origin.lat,
+                    origin_lon: request.origin.lon,
+                    dest_lat: request.destination.lat,
+                    dest_lon: request.destination.lon,
+                },
             });
-            setMessage({ text: "Route saved.", error: false });
+            setSavedId(saved.id);
         } catch (err) {
             setMessage({ text: err.message, error: true });
         } finally {
@@ -118,14 +184,20 @@ export default function Home() {
 
     const handledDeepLink = useRef(false);
     useEffect(() => {
-        const from = params.get("from");
-        const to = params.get("to");
-        if (!from || !to || handledDeepLink.current) return;
+        const link = readPlannerLink(params);
+        if (!link || handledDeepLink.current) return;
         handledDeepLink.current = true;
+        if (link.places) {
+            const [a, b] = link.places;
+            setOrigin(a);
+            setDestination(b);
+            plan(a, b);
+            return;
+        }
         (async () => {
             try {
                 const top = async (q) => (await apiFetch(`/api/geocode/?q=${encodeURIComponent(q)}`))[0];
-                const [a, b] = await Promise.all([top(from), top(to)]);
+                const [a, b] = await Promise.all(link.text.map(top));
                 if (!a || !b) throw new Error("Could not find one of the saved locations.");
                 setOrigin(a);
                 setDestination(b);
@@ -140,17 +212,17 @@ export default function Home() {
     useEffect(() => () => planCtrl.current?.abort(), []);
 
     return (
-        <AppShell>
-            <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-                <aside className="flex w-full shrink-0 flex-col gap-4 overflow-y-auto border-slate-200 bg-slate-50 p-4 lg:w-[24rem] lg:border-r">
-                    <form onSubmit={onSubmit} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <AppShell overlayHeader>
+            <div className="relative flex min-h-0 flex-1 flex-col">
+                <aside className="flex w-full shrink-0 flex-col gap-4 overflow-y-auto bg-mist-50 p-4 lg:absolute lg:left-0 lg:top-16 lg:z-10 lg:max-h-[calc(100%-4rem)] lg:w-[24rem] lg:bg-transparent lg:[direction:rtl] lg:[&>*]:[direction:ltr]">
+                    <form onSubmit={onSubmit} className={`pointer-events-auto flex flex-col gap-3 rounded-2xl p-4 ${panelClass}`}>
                         <PlaceSearch label="From" placeholder="Address or place" value={origin} onChange={setOrigin} allowLocate />
                         <div className="-my-1 flex justify-center">
                             <button
                                 type="button"
                                 onClick={swap}
                                 aria-label="Swap start and destination"
-                                className="rounded-full border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+                                className={buttonClass("secondary", "icon")}
                             >
                                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3" />
@@ -161,7 +233,7 @@ export default function Home() {
 
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label htmlFor="day" className="mb-1 block text-xs font-medium text-slate-600">Day</label>
+                                <label htmlFor="day" className={labelClass}>Day</label>
                                 <select id="day" className={fieldClass} value={day} onChange={(e) => setWhen((w) => ({ ...w, day: Number(e.target.value) }))}>
                                     {DAYS.map((d, i) => (
                                         <option key={d} value={i}>{d}</option>
@@ -169,34 +241,32 @@ export default function Home() {
                                 </select>
                             </div>
                             <div>
-                                <label htmlFor="time" className="mb-1 block text-xs font-medium text-slate-600">Depart at</label>
+                                <label htmlFor="time" className={labelClass}>Depart at</label>
                                 <input id="time" type="time" required className={fieldClass} value={time} onChange={(e) => setWhen((w) => ({ ...w, time: e.target.value }))} />
                             </div>
                         </div>
 
-                        <details className="group rounded-lg border border-slate-200 px-3 py-2">
-                            <summary className="cursor-pointer text-sm font-medium text-slate-700">Options</summary>
-                            <div className="mt-3 flex flex-col gap-2 text-sm text-slate-700">
+                        <details className="group rounded-lg border border-mist-300/70 px-3 py-2">
+                            <summary className="cursor-pointer text-sm font-medium text-mist-700">Options</summary>
+                            <div className="mt-3 flex flex-col gap-2 text-sm text-mist-700">
                                 <label className="flex items-center gap-2">
-                                    <input type="checkbox" className="accent-blue-600" checked={minimizeWalking} onChange={(e) => setMinimizeWalking(e.target.checked)} />
+                                    <input type="checkbox" className="accent-brand-700" checked={minimizeWalking} onChange={setOption(setMinimizeWalking)} />
                                     Minimise walking
                                 </label>
                                 <label className="flex items-center gap-2">
-                                    <input type="checkbox" className="accent-blue-600" checked={minimizeStops} onChange={(e) => setMinimizeStops(e.target.checked)} />
+                                    <input type="checkbox" className="accent-brand-700" checked={minimizeStops} onChange={setOption(setMinimizeStops)} />
                                     Fewer transfers
                                 </label>
                                 <fieldset className="mt-1">
-                                    <legend className="mb-1 text-xs font-medium text-slate-600">Algorithm</legend>
-                                    <div className="inline-flex rounded-lg border border-slate-300 p-0.5">
+                                    <legend className="mb-1 text-xs font-medium text-mist-600">Algorithm</legend>
+                                    <div className={segmentGroupClass}>
                                         {[["RAPTOR", false], ["Dijkstra", true]].map(([name, value]) => (
                                             <button
                                                 key={name}
                                                 type="button"
                                                 aria-pressed={useDijkstra === value}
                                                 onClick={() => setUseDijkstra(value)}
-                                                className={`rounded-md px-3 py-1 text-xs font-medium ${
-                                                    useDijkstra === value ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-                                                }`}
+                                                className={segmentClass(useDijkstra === value)}
                                             >
                                                 {name}
                                             </button>
@@ -209,7 +279,7 @@ export default function Home() {
                         <button
                             type="submit"
                             disabled={planning}
-                            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600/40 disabled:opacity-60"
+                            className={buttonClass()}
                         >
                             {planning ? "Finding routes…" : "Find route"}
                         </button>
@@ -218,21 +288,32 @@ export default function Home() {
                     {message && (
                         <p
                             role="status"
-                            className={`rounded-lg border px-3 py-2 text-sm ${
-                                message.error
-                                    ? "border-red-200 bg-red-50 text-red-800"
-                                    : "border-emerald-200 bg-emerald-50 text-emerald-800"
-                            }`}
+                            className={`pointer-events-auto ${alertClass(message.error)}`}
                         >
                             {message.text}
                         </p>
                     )}
 
-                    {journey && <JourneyResults journey={journey} onSave={save} saving={saving} signedIn={Boolean(getToken())} />}
+                    {journey && (
+                        <JourneyResults
+                            journey={journey}
+                            onSave={save}
+                            saving={saving}
+                            saved={savedId != null}
+                            signedIn={Boolean(session)}
+                        />
+                    )}
                 </aside>
 
-                <div className="min-h-[50vh] flex-1 lg:min-h-0">
-                    <MapView origin={origin} destination={destination} legs={legs} areaRadius={journey?.areaRadius} />
+                <div className="min-h-[50vh] flex-1 lg:absolute lg:inset-0 lg:min-h-0">
+                    <MapView
+                        origin={origin}
+                        destination={destination}
+                        legs={legs}
+                        areaRadius={journey?.areaRadius}
+                        insetLeft={overlay ? PANEL_WIDTH_PX : 0}
+                        insetTop={overlay ? HEADER_HEIGHT_PX : 0}
+                    />
                 </div>
             </div>
         </AppShell>

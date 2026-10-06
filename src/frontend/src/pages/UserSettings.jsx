@@ -1,206 +1,181 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../lib/api";
+import { useEffect, useState } from "react";
+import Page from "../components/Page";
+import { apiFetch } from "../lib/api";
+import { alertClass, buttonClass, fieldClass, labelClass, panelClass } from "../lib/ui";
+
+const PROFILE_FIELDS = [
+    ["username", "Username", "text"],
+    ["email", "Email", "email"],
+    ["first_name", "First name", "text"],
+    ["last_name", "Last name", "text"],
+];
+
+const PREFERENCES = [
+    ["minimize_walking", "Minimise walking", "Prefer routes with short walks between stops."],
+    ["minimize_stops", "Fewer transfers", "Prefer routes that change vehicle less often."],
+];
+
+function Field({ id, label, ...props }) {
+    return (
+        <div>
+            <label htmlFor={id} className={labelClass}>{label}</label>
+            <input id={id} className={fieldClass} {...props} />
+        </div>
+    );
+}
+
+function PreferencesCard() {
+    const [prefs, setPrefs] = useState(null);
+    const [msg, setMsg] = useState(null);
+
+    useEffect(() => {
+        apiFetch("/api/preferences/", { auth: true })
+            .then(setPrefs)
+            .catch(() => setMsg({ text: "Could not load your preferences.", error: true }));
+    }, []);
+
+    const toggle = async (key, value) => {
+        const previous = prefs;
+        setPrefs({ ...prefs, [key]: value });
+        try {
+            setPrefs(await apiFetch("/api/preferences/", { method: "PATCH", auth: true, body: { [key]: value } }));
+            setMsg({ text: "Preferences saved.", error: false });
+        } catch (err) {
+            setPrefs(previous);
+            setMsg({ text: err.message || "Could not save your preferences.", error: true });
+        }
+    };
+
+    return (
+        <section aria-labelledby="prefs-heading" className={`flex flex-col gap-3 rounded-2xl p-5 ${panelClass}`}>
+            <div>
+                <h2 id="prefs-heading" className="text-sm font-semibold text-mist-700">Journey preferences</h2>
+                <p className="text-xs text-mist-500">The planner starts with these set. You can still change them for a single search.</p>
+            </div>
+            {msg && <p role="status" className={alertClass(msg.error)}>{msg.text}</p>}
+            {prefs === null && !msg && <p className="text-sm text-mist-500">Loading…</p>}
+            {prefs && (
+                <div className="flex flex-col gap-3">
+                    {PREFERENCES.map(([key, label, hint]) => (
+                        <label key={key} className="flex items-start gap-3 text-sm text-mist-800">
+                            <input
+                                type="checkbox"
+                                className="mt-0.5 h-4 w-4 accent-brand-700"
+                                checked={prefs[key]}
+                                onChange={(e) => toggle(key, e.target.checked)}
+                            />
+                            <span>
+                                <span className="font-medium">{label}</span>
+                                <span className="block text-xs text-mist-500">{hint}</span>
+                            </span>
+                        </label>
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+}
 
 export default function UserSettings() {
-    const navigate = useNavigate();
-    const token = localStorage.getItem("access");
+    const [user, setUser] = useState({ username: "", email: "", first_name: "", last_name: "" });
+    const [passwords, setPasswords] = useState({ old_password: "", new_password: "" });
+    const [profileMsg, setProfileMsg] = useState(null);
+    const [passwordMsg, setPasswordMsg] = useState(null);
+    const [busy, setBusy] = useState(null);
 
-    const [user, setUser] = useState({
-        username: "",
-        email: "",
-        first_name: "",
-        last_name: "",
-    });
-    const [passwords, setPasswords] = useState({
-        old_password: "",
-        new_password: "",
-    });
-    const [message, setMessage] = useState("");
-
-    // Fetch current user data
     useEffect(() => {
-        if (!token) {
-            navigate("/login");
-            return;
-        }
-
-        fetch(`${API_BASE}/api/user/`, {
-            headers: { Authorization: `Bearer ${token}` },
-        })
-            .then((res) => {
-                if (!res.ok) throw new Error("Failed to fetch user");
-                return res.json();
-            })
-            .then((data) => {
+        apiFetch("/api/user/", { auth: true })
+            .then((data) =>
                 setUser({
                     username: data.username || "",
                     email: data.email || "",
                     first_name: data.first_name || "",
                     last_name: data.last_name || "",
-                });
-            })
-            .catch((err) => {
-                console.error(err);
-                setMessage("⚠️ Could not load user data");
-            });
-    }, [token, navigate]);
+                })
+            )
+            .catch(() => setProfileMsg({ text: "Could not load your details.", error: true }));
+    }, []);
 
     const handleProfileUpdate = async (e) => {
         e.preventDefault();
-        const res = await fetch(`${API_BASE}/api/user/`, {
-            method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(user),
-        });
-        setMessage(res.ok ? "Profile updated ✅" : "Failed to update ❌");
+        setBusy("profile");
+        try {
+            await apiFetch("/api/user/", { method: "PATCH", auth: true, body: user });
+            setProfileMsg({ text: "Profile updated.", error: false });
+        } catch (err) {
+            setProfileMsg({ text: err.message || "Failed to update profile.", error: true });
+        } finally {
+            setBusy(null);
+        }
     };
 
     const handlePasswordChange = async (e) => {
         e.preventDefault();
+        setBusy("password");
         try {
-            const res = await fetch(`${API_BASE}/api/user/change_password/`, {
-                method: "PUT", // ✅ backend expects PUT
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify(passwords),
-            });
-
-            const data = await res.json();
-            console.log("Password change response:", data);
-
-            if (res.ok) {
-                // ✅ Show success message but keep logged in
-                setMessage("✅ Password changed successfully!");
-                setPasswords({ old_password: "", new_password: "" }); // clear form
-            } else {
-                setMessage(
-                    data.detail ||
-                    data.error ||
-                    (typeof data === "object" ? JSON.stringify(data) : "Failed to change password ❌")
-                );
-            }
+            await apiFetch("/api/user/change_password/", { method: "PUT", auth: true, body: passwords });
+            setPasswordMsg({ text: "Password changed.", error: false });
+            setPasswords({ old_password: "", new_password: "" });
         } catch (err) {
-            console.error(err);
-            setMessage("⚠️ Network error while changing password");
+            setPasswordMsg({ text: err.message || "Failed to change password.", error: true });
+        } finally {
+            setBusy(null);
         }
     };
 
     return (
-        <div className="flex flex-col min-h-screen w-screen bg-[#d3d3d3]">
-            {/* Header */}
-            <header className="w-full bg-[#001f4d] text-white flex items-center justify-start py-3 px-4">
-                <img src="/logo.png" alt="PathPilot Logo" className="h-[60px]" />
-                <span className="text-xl font-bold ml-2">YOUR JOURNEY, OUR GUIDE</span>
-            </header>
+        <Page width="md">
+            <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
 
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col items-center justify-start p-6 sm:p-12">
-                <h1 className="text-3xl sm:text-4xl font-bold mb-6 text-[#001f4d]">
-                    User Settings
-                </h1>
+            <PreferencesCard />
 
-                <button
-                    onClick={() => navigate("/")}
-                    className="mb-6 bg-[#001f4d] text-white py-2 px-4 rounded hover:bg-[#003366]"
-                >
-                    ← Back to Home
+            <form onSubmit={handleProfileUpdate} className={`flex flex-col gap-3 rounded-2xl p-5 ${panelClass}`}>
+                <h2 className="text-sm font-semibold text-mist-700">Profile</h2>
+                {profileMsg && <p role="status" className={alertClass(profileMsg.error)}>{profileMsg.text}</p>}
+                <div className="grid gap-3 sm:grid-cols-2">
+                    {PROFILE_FIELDS.map(([key, label, type]) => (
+                        <Field
+                            key={key}
+                            id={key}
+                            label={label}
+                            type={type}
+                            value={user[key]}
+                            onChange={(e) => setUser({ ...user, [key]: e.target.value })}
+                        />
+                    ))}
+                </div>
+                <button type="submit" disabled={busy === "profile"} className={`self-start ${buttonClass()}`}>
+                    {busy === "profile" ? "Saving…" : "Save changes"}
                 </button>
+            </form>
 
-                {message && (
-                    <p className="mb-4 text-lg font-medium text-[#001f4d]">{message}</p>
-                )}
-
-                {/* Profile Form */}
-                <form
-                    onSubmit={handleProfileUpdate}
-                    className="mb-10 w-full max-w-lg bg-white p-6 rounded shadow space-y-4"
-                >
-                    <h2 className="text-2xl font-semibold text-[#001f4d]">
-                        Update Profile
-                    </h2>
-                    <input
-                        type="text"
-                        placeholder="Username"
-                        value={user.username || ""}
-                        onChange={(e) => setUser({ ...user, username: e.target.value })}
-                        className="border p-2 w-full rounded bg-white text-black placeholder-gray-700"
-                    />
-                    <input
-                        type="email"
-                        placeholder="Email"
-                        value={user.email || ""}
-                        onChange={(e) => setUser({ ...user, email: e.target.value })}
-                        className="border p-2 w-full rounded bg-white text-black placeholder-gray-700"
-                    />
-                    <input
-                        type="text"
-                        placeholder="First Name"
-                        value={user.first_name || ""}
-                        onChange={(e) => setUser({ ...user, first_name: e.target.value })}
-                        className="border p-2 w-full rounded bg-white text-black placeholder-gray-700"
-                    />
-                    <input
-                        type="text"
-                        placeholder="Last Name"
-                        value={user.last_name || ""}
-                        onChange={(e) => setUser({ ...user, last_name: e.target.value })}
-                        className="border p-2 w-full rounded bg-white text-black placeholder-gray-700"
-                    />
-                    <button
-                        type="submit"
-                        className="bg-[#001f4d] text-white px-4 py-2 rounded hover:bg-[#003366]"
-                    >
-                        Save Changes
-                    </button>
-                </form>
-
-                {/* Password Form */}
-                <form
-                    onSubmit={handlePasswordChange}
-                    className="w-full max-w-lg bg-white p-6 rounded shadow space-y-4"
-                >
-                    <h2 className="text-2xl font-semibold text-[#001f4d]">
-                        Change Password
-                    </h2>
-                    <input
+            <form onSubmit={handlePasswordChange} className={`flex flex-col gap-3 rounded-2xl p-5 ${panelClass}`}>
+                <h2 className="text-sm font-semibold text-mist-700">Change password</h2>
+                {passwordMsg && <p role="status" className={alertClass(passwordMsg.error)}>{passwordMsg.text}</p>}
+                <div className="grid gap-3 sm:grid-cols-2">
+                    <Field
+                        id="old_password"
+                        label="Current password"
                         type="password"
-                        placeholder="Old Password"
+                        autoComplete="current-password"
+                        required
                         value={passwords.old_password}
-                        onChange={(e) =>
-                            setPasswords({ ...passwords, old_password: e.target.value })
-                        }
-                        className="border p-2 w-full rounded bg-white text-black placeholder-gray-700"
+                        onChange={(e) => setPasswords({ ...passwords, old_password: e.target.value })}
                     />
-                    <input
+                    <Field
+                        id="new_password"
+                        label="New password"
                         type="password"
-                        placeholder="New Password"
+                        autoComplete="new-password"
+                        required
                         value={passwords.new_password}
-                        onChange={(e) =>
-                            setPasswords({ ...passwords, new_password: e.target.value })
-                        }
-                        className="border p-2 w-full rounded bg-white text-black placeholder-gray-700"
+                        onChange={(e) => setPasswords({ ...passwords, new_password: e.target.value })}
                     />
-                    <button
-                        type="submit"
-                        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                    >
-                        Change Password
-                    </button>
-                </form>
-            </div>
-
-            {/* Footer */}
-            <footer className="w-full bg-black text-white text-center py-3 mt-auto">
-                <p>&copy; 2025 PathPilot</p>
-                <p>Email: PathPilot@gmail.com</p>
-                <p>Contact No: +27747618921</p>
-            </footer>
-        </div>
+                </div>
+                <button type="submit" disabled={busy === "password"} className={`self-start ${buttonClass()}`}>
+                    {busy === "password" ? "Changing…" : "Change password"}
+                </button>
+            </form>
+        </Page>
     );
 }

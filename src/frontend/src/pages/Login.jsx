@@ -1,96 +1,70 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { API_BASE } from "../lib/api";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import Page from "../components/Page";
+import { apiFetch } from "../lib/api";
+import { setSession } from "../lib/auth";
+import { alertClass, buttonClass, fieldClass, labelClass, linkClass, panelClass } from "../lib/ui";
 
 export default function Login() {
     const navigate = useNavigate();
     const location = useLocation();
     const [formData, setFormData] = useState({ username: "", password: "" });
+    const [error, setError] = useState(null);
+    const [busy, setBusy] = useState(false);
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
+    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
     const handleLogin = async (e) => {
         e.preventDefault();
-
+        setBusy(true);
+        setError(null);
         try {
-            const res = await fetch(`${API_BASE}/api/login/`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formData),
-            });
+            const data = await apiFetch("/api/login/", { method: "POST", body: formData });
+            if (!data?.access) throw new Error("Sign-in failed");
+            setSession(data);
 
-            const data = await res.json();
-            console.log("Login response:", data);
-
-            if (res.ok && data.access) {
-                // store token under "access" for consistency
-                localStorage.setItem("access", data.access);
-
-                const from = location.state?.from;
-                navigate(from ? `${from.pathname}${from.search ?? ""}` : "/", { replace: true });
-            } else {
-                alert(data.error || "Login failed");
-            }
-        } catch (error) {
-            console.error("Login error:", error);
-            alert("Something went wrong. Try again.");
+            const from = location.state?.from;
+            navigate(from ? `${from.pathname}${from.search ?? ""}` : "/", { replace: true });
+        } catch (err) {
+            setError(err.message || "Something went wrong. Try again.");
+            setBusy(false);
         }
     };
 
     return (
-        <div className="flex flex-col min-h-screen w-screen bg-[#d3d3d3]">
-            <header className="w-full bg-[#001f4d] text-white flex items-center justify-center py-3">
-                <img src="/logo.png" alt="PathPilot Logo" className="h-[60px]" />
-                <span className="text-xl font-bold ml-2">YOUR JOURNEY, OUR GUIDE</span>
-            </header>
+        <Page width="sm" centered brand>
+            <form onSubmit={handleLogin} className={`flex flex-col gap-4 rounded-2xl p-6 ${panelClass}`}>
+                <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
 
-            <div className="flex-1 relative w-full flex justify-center items-center p-4">
-                <video autoPlay muted loop playsInline aria-hidden="true" tabIndex={-1}
-                    className="absolute inset-0 w-full h-full object-cover z-0 opacity-80 pointer-events-none hidden sm:block">
-                    <source src="/vid.mp4" type="video/mp4" />
-                </video>
+                {error && <p role="alert" className={alertClass(true)}>{error}</p>}
 
-                <form
-                    className="relative z-[9999] pointer-events-auto flex flex-col items-center bg-white bg-opacity-90 p-6 sm:p-12 rounded-md shadow-lg w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl overflow-auto"
-                    onSubmit={handleLogin}
-                >
-                    <h2 className="text-[#001f4d] text-3xl sm:text-4xl font-bold mb-6">Log In</h2>
+                {[
+                    ["username", "Username", "username"],
+                    ["password", "Password", "current-password"],
+                ].map(([name, label, autoComplete]) => (
+                    <div key={name}>
+                        <label htmlFor={name} className={labelClass}>{label}</label>
+                        <input
+                            id={name}
+                            name={name}
+                            type={name === "password" ? "password" : "text"}
+                            autoComplete={autoComplete}
+                            required
+                            value={formData[name]}
+                            onChange={handleChange}
+                            className={fieldClass}
+                        />
+                    </div>
+                ))}
 
-                    {["username", "password"].map((field) => (
-                        <div key={field} className="w-full mb-4">
-                            <label htmlFor={field} className="text-[#001f4d] mb-2 w-full text-left text-lg capitalize">
-                                {field}:
-                            </label>
-                            <input
-                                type={field === "password" ? "password" : "text"}
-                                id={field}
-                                name={field}
-                                required
-                                value={formData[field]}
-                                onChange={handleChange}
-                                className="border border-[#001f4d] rounded p-3 w-full text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-[#001f4d] text-black"
-                            />
-                        </div>
-                    ))}
+                <button type="submit" disabled={busy} className={buttonClass()}>
+                    {busy ? "Signing in…" : "Sign in"}
+                </button>
 
-                    <button type="submit" className="bg-[#001f4d] text-white py-3 rounded w-full hover:bg-[#003366] text-base sm:text-lg">
-                        Log In
-                    </button>
-
-                    <p className="mt-4 text-base text-center text-black">
-                        Don’t have an account?{" "}
-                        <Link to="/signup" className="text-[#001f4d] underline">Sign Up</Link>
-                    </p>
-                </form>
-            </div>
-
-            <footer className="w-full bg-black text-white text-center py-3">
-                <p>&copy; 2025 PathPilot</p>
-                <p>Email: PathPilot@gmail.com</p>
-                <p>Contact No: +27747618921</p>
-            </footer>
-        </div>
+                <p className="text-center text-sm text-mist-600">
+                    Don’t have an account? <Link to="/signup" state={location.state} className={linkClass}>Create one</Link>
+                </p>
+            </form>
+        </Page>
     );
 }

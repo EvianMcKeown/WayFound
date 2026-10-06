@@ -1,90 +1,61 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import Page from "../components/Page";
+import { panelClass } from "../lib/ui";
+
+const FAQS = [
+    {
+        question: "How do I plan a journey?",
+        answer:
+            "Enter your starting point and destination in the search fields, pick a day and time, and choose any route preferences (optional). The planner will find the best route for you.",
+    },
+    {
+        question: "Can I save routes so that I can view them again?",
+        answer:
+            "Yes. After finding a route, choose “Save this route”. You will be asked to sign in if you haven’t. Your routes then appear under Saved routes in the header, where you can rename them or plan them again in one click.",
+    },
+    {
+        question: "Can the planner remember that I prefer less walking?",
+        answer:
+            "Yes. Signed-in users can set journey preferences in Settings. The planner starts with them switched on, and you can still change them for a single search under Options.",
+    },
+    {
+        question: "A time or stop looks wrong. What should I do?",
+        answer:
+            "Choose “Report an issue” under a journey result (it attaches that journey for us), or use the link at the bottom of this page.",
+    },
+    {
+        question: "Can I use the planner on my phone?",
+        answer: "Yes, the website is fully mobile-friendly.",
+    },
+];
 
 export default function FAQ() {
-    const navigate = useNavigate();
-
-    // FAQ questions and answers
-    const faqs = [
-        {
-            question: "How do I plan a journey?",
-            answer:
-                "Enter your starting point and destination in the search fields. Select your route preferences (Optional). The planner will generate the best routes for you.",
-        },
-        {
-            question: "Can I see save routes so that i can view them again?",
-            answer: "Yes, after searcging for a route click the Save Current Route button on the left of your screen. That specifc route will the be saved and you can access it via the saved routes page which you can access from the button on your header",
-        },
-
-        {
-            question: "Can I use the planner on my phone?",
-            answer: "Yes, the website is fully mobile-friendly.",
-        },
-    ];
-
-    const [visibleIndex, setVisibleIndex] = useState(null);
-
-    const toggleFAQ = (index) => {
-        setVisibleIndex(visibleIndex === index ? null : index);
-    };
-
     return (
-        <div className="flex flex-col min-h-screen w-screen bg-[#d3d3d3]">
-            {/* Header */}
-            <header className="w-full bg-[#001f4d] text-white flex items-center justify-start py-3 px-4">
-                <img src="/logo.png" alt="PathPilot Logo" className="h-[60px]" />
-                <span className="text-xl font-bold ml-2">YOUR JOURNEY, OUR GUIDE</span>
-            </header>
+        <Page width="lg">
+            <h1 className="text-xl font-semibold tracking-tight">Help and FAQs</h1>
 
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col items-center justify-start p-6 sm:p-12">
-                <h1 className="text-3xl sm:text-4xl font-bold mb-6 text-[#001f4d]">Help and FAQs</h1>
+            <section aria-labelledby="video-heading" className={`rounded-2xl p-4 ${panelClass}`}>
+                <h2 id="video-heading" className="mb-3 text-sm font-semibold text-mist-700">Watch the help video</h2>
+                <video controls preload="metadata" className="aspect-video w-full rounded-lg bg-brand-700" aria-label="Journey plan walkthrough">
+                    <source src="/vid2.mp4" type="video/mp4" />
+                </video>
+            </section>
 
-                <button
-                    onClick={() => navigate("/")}
-                    className="mb-6 bg-[#001f4d] text-white py-2 px-4 rounded hover:bg-[#003366]"
-                >
-                    ← Back to Home
-                </button>
-
-                {/* Video Section */}
-                <section className="mb-8 w-full max-w-3xl">
-                    <h2 className="text-2xl font-semibold mb-4 text-[#001f4d]">Watch the help video below</h2>
-                    <div className="aspect-w-16 aspect-h-9">
-                        <iframe
-                            src="/vid2.mp4" type="video/mp4"
-                            title="Journey plan walkthrough"
-                            className="w-full h-[315px] sm:h-[500px]"
-                            allowFullScreen
-                        ></iframe>
-                    </div>
-                </section>
-
-                {/* FAQ Section */}
-                <section className="w-full max-w-3xl">
-                    <h2 className="text-2xl font-semibold mb-4 text-[#001f4d]">Frequently Asked Questions</h2>
-                    {faqs.map((faq, index) => (
-                        <div key={index} className="mb-4 border-b border-gray-300 pb-2">
-                            <button
-                                className="w-full text-left text-lg font-medium text-white hover:text-[#003366]"
-                                onClick={() => toggleFAQ(index)}
-                            >
+            <section aria-labelledby="faq-heading" className={`rounded-2xl p-4 ${panelClass}`}>
+                <h2 id="faq-heading" className="mb-2 text-sm font-semibold text-mist-700">Frequently asked questions</h2>
+                <div className="divide-y divide-mist-200/80">
+                    {FAQS.map((faq) => (
+                        <details key={faq.question} className="group py-3">
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-mist-900">
                                 {faq.question}
-                            </button>
-                            {visibleIndex === index && (
-                                <p className="mt-2 text-black text-base">{faq.answer}</p>
-                            )}
-                        </div>
+                                <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-mist-500 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M6 9l6 6 6-6" />
+                                </svg>
+                            </summary>
+                            <p className="mt-2 text-sm text-mist-600">{faq.answer}</p>
+                        </details>
                     ))}
-                </section>
-            </div>
-
-            {/* Footer */}
-            <footer className="w-full bg-black text-white text-center py-3 mt-auto">
-                <p>&copy; 2025 PathPilot</p>
-                <p>Email: PathPilot@gmail.com</p>
-                <p>Contact No: +27747618921</p>
-            </footer>
-        </div>
+                </div>
+            </section>
+        </Page>
     );
 }

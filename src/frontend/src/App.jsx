@@ -5,12 +5,15 @@ import Home from "./pages/Home";
 import FAQ from "./pages/FAQ";
 import SavedRoutes from "./pages/SavedRoutes";
 import UserSettings from "./pages/UserSettings";
+import Report from "./pages/Report";
+import About from "./pages/About";
+import { useSession } from "./lib/auth";
 
 
 function PrivateRoute({ children }) {
   const location = useLocation();
-  const token = localStorage.getItem("access");
-  return token ? children : <Navigate to="/login" replace state={{ from: location }} />;
+  const session = useSession();
+  return session ? children : <Navigate to="/login" replace state={{ from: location }} />;
 }
 
 export default function App() {
@@ -22,6 +25,8 @@ export default function App() {
         <Route path="/faq" element={<FAQ />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/report" element={<Report />} />
+        <Route path="/about" element={<About />} />
 
         <Route
           path="/savedroutes"

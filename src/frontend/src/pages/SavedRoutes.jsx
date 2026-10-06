@@ -1,10 +1,79 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import AppShell from "../components/AppShell";
+import { Link } from "react-router-dom";
+import Page from "../components/Page";
 import { apiFetch } from "../lib/api";
+import { savedRouteLink } from "../lib/plannerLink";
+import { alertClass, buttonClass, fieldClass, linkClass, panelClass } from "../lib/ui";
+
+const defaultName = (r) => `${r.start_location} → ${r.end_location}`;
+
+function RouteRow({ route, onRename, onDelete }) {
+    const [editing, setEditing] = useState(false);
+    const [name, setName] = useState(route.name);
+    const [busy, setBusy] = useState(false);
+
+    const save = async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        const ok = await onRename(route.id, name.trim());
+        setBusy(false);
+        if (ok) setEditing(false);
+    };
+
+    const cancel = () => {
+        setName(route.name);
+        setEditing(false);
+    };
+
+    return (
+        <li className={`flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center ${panelClass}`}>
+            {editing ? (
+                <form onSubmit={save} className="flex min-w-0 flex-1 items-center gap-2">
+                    <label htmlFor={`name-${route.id}`} className="sr-only">Route name</label>
+                    <input
+                        id={`name-${route.id}`}
+                        autoFocus
+                        maxLength={100}
+                        value={name}
+                        placeholder={defaultName(route)}
+                        onChange={(e) => setName(e.target.value)}
+                        onKeyDown={(e) => e.key === "Escape" && cancel()}
+                        className={fieldClass}
+                    />
+                    <button type="submit" disabled={busy} className={buttonClass("primary", "sm")}>Save</button>
+                    <button type="button" onClick={cancel} className={buttonClass("ghost", "sm")}>Cancel</button>
+                </form>
+            ) : (
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-mist-900">{route.name || defaultName(route)}</p>
+                    {route.name && (
+                        <p className="truncate text-xs text-mist-600">{defaultName(route)}</p>
+                    )}
+                    <p className="mt-1 text-xs text-mist-500">Saved {new Date(route.created_at).toLocaleDateString()}</p>
+                </div>
+            )}
+
+            {!editing && (
+                <div className="flex shrink-0 gap-2">
+                    <Link to={savedRouteLink(route)} className={buttonClass("primary", "sm")}>Plan</Link>
+                    <button type="button" onClick={() => setEditing(true)} className={buttonClass("secondary", "sm")}>
+                        Rename
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onDelete(route.id)}
+                        aria-label={`Delete ${route.name || defaultName(route)}`}
+                        className={buttonClass("danger", "sm")}
+                    >
+                        Delete
+                    </button>
+                </div>
+            )}
+        </li>
+    );
+}
 
 export default function SavedRoutes() {
-    const navigate = useNavigate();
     const [routes, setRoutes] = useState(null);
     const [error, setError] = useState(null);
 
@@ -14,8 +83,17 @@ export default function SavedRoutes() {
             .catch((err) => setError(err.message));
     }, []);
 
-    const plan = (r) =>
-        navigate(`/?from=${encodeURIComponent(r.start_location)}&to=${encodeURIComponent(r.end_location)}`);
+    const rename = async (id, name) => {
+        try {
+            const updated = await apiFetch(`/api/saved-routes/${id}/`, { method: "PATCH", auth: true, body: { name } });
+            setRoutes((rs) => rs.map((r) => (r.id === id ? updated : r)));
+            setError(null);
+            return true;
+        } catch (err) {
+            setError(err.message);
+            return false;
+        }
+    };
 
     const remove = async (id) => {
         try {
@@ -27,49 +105,26 @@ export default function SavedRoutes() {
     };
 
     return (
-        <AppShell>
-            <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto p-4 sm:p-6">
-                <h1 className="mb-4 text-xl font-semibold tracking-tight">Saved routes</h1>
+        <Page width="md">
+            <h1 className="text-xl font-semibold tracking-tight">Saved routes</h1>
 
-                {error && (
-                    <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                        {error}
-                    </p>
-                )}
-                {routes === null && !error && <p className="text-sm text-slate-500">Loading…</p>}
-                {routes?.length === 0 && (
-                    <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-                        No saved routes yet. Plan a journey and choose “Save this route”.
-                    </p>
-                )}
+            {error && (
+                <p role="alert" className={alertClass(true)}>
+                    {error}
+                </p>
+            )}
+            {routes === null && !error && <p className="text-sm text-mist-500">Loading…</p>}
+            {routes?.length === 0 && (
+                <p className={`rounded-2xl p-6 text-center text-sm text-mist-600 ${panelClass}`}>
+                    No saved routes yet. <Link to="/" className={linkClass}>Plan a journey</Link> and choose “Save this route”.
+                </p>
+            )}
 
-                <ul className="flex flex-col gap-3">
-                    {routes?.map((r) => (
-                        <li key={r.id} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                            <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-medium text-slate-900">{r.start_location}</p>
-                                <p className="truncate text-sm text-slate-600">→ {r.end_location}</p>
-                                <p className="mt-1 text-xs text-slate-400">{new Date(r.created_at).toLocaleDateString()}</p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => plan(r)}
-                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-                            >
-                                Plan
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => remove(r.id)}
-                                aria-label={`Delete route from ${r.start_location} to ${r.end_location}`}
-                                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                                Delete
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            </div>
-        </AppShell>
+            <ul className="flex flex-col gap-3">
+                {routes?.map((r) => (
+                    <RouteRow key={r.id} route={r} onRename={rename} onDelete={remove} />
+                ))}
+            </ul>
+        </Page>
     );
 }
