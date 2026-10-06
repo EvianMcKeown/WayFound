@@ -1,8 +1,13 @@
-from typing import Required
+import json
+
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from rest_framework.fields import CharField
 from rest_framework.serializers import FloatField, IntegerField
 from .models import (
+    IssueReport,
     SavedRoute,
     UserProfile,
     Stop,
@@ -15,16 +20,88 @@ from .models import (
 )
 
 
+class SignupSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+
+    def validate_username(self, value):
+        value = value.strip()
+        if User.objects.filter(username__iexact=value).exists():
+            raise serializers.ValidationError("That username is taken.")
+        return value
+
+    def validate_email(self, value):
+        value = value.strip()
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("An account with that email already exists.")
+        return value
+
+    def validate(self, attrs):
+        candidate = User(
+            username=attrs["username"],
+            email=attrs["email"],
+            first_name=attrs.get("first_name", ""),
+            last_name=attrs.get("last_name", ""),
+        )
+        try:
+            validate_password(attrs["password"], candidate)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError({"password": list(e.messages)})
+        return attrs
+
+    def create(self, validated_data):
+        return User.objects.create_user(**validated_data)
+
+
 class SavedRouteSerializer(serializers.ModelSerializer):
     class Meta:
         model = SavedRoute
-        fields = ["id", "start_location", "end_location", "created_at"]
+        fields = [
+            "id",
+            "name",
+            "start_location",
+            "end_location",
+            "origin_lat",
+            "origin_lon",
+            "dest_lat",
+            "dest_lon",
+            "created_at",
+        ]
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class PreferencesSerializer(serializers.ModelSerializer):
+    minimize_walking = serializers.BooleanField(source="preference_min_walking", required=False)
+    minimize_stops = serializers.BooleanField(source="preference_min_stops", required=False)
+
     class Meta:
         model = UserProfile
-        fields = "__all__"  # you can list fields explicitly if you want control
+        fields = ["minimize_walking", "minimize_stops"]
+
+
+MAX_REPORT_CONTEXT_BYTES = 20_000
+
+
+class IssueReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IssueReport
+        fields = ["id", "category", "description", "contact_email", "context", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+    def validate_description(self, value):
+        value = value.strip()
+        if len(value) < 10:
+            raise serializers.ValidationError("Please describe the problem in a few more words.")
+        return value
+
+    def validate_context(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Context must be an object.")
+        if len(json.dumps(value)) > MAX_REPORT_CONTEXT_BYTES:
+            raise serializers.ValidationError("Context is too large.")
+        return value
 
 
 class AgencySerializer(serializers.ModelSerializer):

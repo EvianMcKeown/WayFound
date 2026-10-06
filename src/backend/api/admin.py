@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import (
+    IssueReport,
     UserProfile,
     SavedRoute,
     Stop,
@@ -27,6 +28,19 @@ class SavedRouteAdmin(admin.ModelAdmin):
     list_display = ("user", "start_location", "end_location", "created_at")
     list_filter = ("created_at",)
     search_fields = ("user__username", "start_location", "end_location")
+
+
+@admin.register(IssueReport)
+class IssueReportAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "category", "status", "user", "short_description")
+    list_filter = ("status", "category", "created_at")
+    list_editable = ("status",)
+    search_fields = ("description", "contact_email", "user__username")
+    readonly_fields = ("user", "category", "description", "contact_email", "context", "created_at")
+
+    @admin.display(description="Description")
+    def short_description(self, obj):
+        return obj.description[:80]
 
 
 # ----------------------------

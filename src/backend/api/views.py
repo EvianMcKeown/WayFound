@@ -33,9 +33,13 @@ from .models import (
     Calendar,
     CalendarDate,
 )
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from .serializers import (
+    IssueReportSerializer,
+    PreferencesSerializer,
     SavedRouteSerializer,
-    UserProfileSerializer,
+    SignupSerializer,
     StopSerializer,
     RouteSerializer,
     TripSerializer,
@@ -88,16 +92,24 @@ def closest_stop(lat, lon, stops) -> Tuple[str, float]:
 # -------------------------------
 # AUTH
 # -------------------------------
+def _session_payload(user) -> Dict[str, Any]:
+    refresh = CustomTokenObtainPairSerializer.get_token(user)
+    return {
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+        "username": user.username,
+        "is_superuser": user.is_superuser,
+        "is_staff": user.is_staff,
+    }
+
+
 @api_view(["POST"])
 def signup(request):
-    username = request.data.get("username")
-    password = request.data.get("password")
-
-    if User.objects.filter(username=username).exists():
-        return Response({"error": "User already exists"}, status=400)
-
-    User.objects.create_user(username=username, password=password)
-    return Response({"message": "User created"}, status=201)
+    ser = SignupSerializer(data=request.data)
+    ser.is_valid(raise_exception=True)
+    user = ser.save()
+    UserProfile.objects.get_or_create(user=user)
+    return Response(_session_payload(user), status=status.HTTP_201_CREATED)
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -199,7 +211,6 @@ class PlanJourneyView(APIView):
 # def get_route(request):
 #    start = request.data.get("start_location")
 #    end = request.data.get("end_location")
-#
 #    return Response(
 #        {
 #            "message": "Route generated successfully!",
@@ -214,21 +225,21 @@ class PlanJourneyView(APIView):
 # -------------------------------
 # USER PREFERENCES
 # -------------------------------
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def update_preferences(request):
-    profile, created = UserProfile.objects.get_or_create(user=request.user)
+class PreferencesView(generics.RetrieveUpdateAPIView):
+    serializer_class = PreferencesSerializer
+    permission_classes = [IsAuthenticated]
 
-    profile.preference_min_walking = request.data.get("minWalking", False)
-    profile.preference_min_stops = request.data.get("minStops", False)
-    profile.save()
-
-    return Response({"message": "Preferences updated successfully!"})
+    def get_object(self):
+        profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
+        return profile
 
 
 # -------------------------------
 # SAVED ROUTES
 # -------------------------------
+COORD_FIELDS = ("origin_lat", "origin_lon", "dest_lat", "dest_lon")
+
+
 class SavedRouteViewSet(viewsets.ModelViewSet):
     serializer_class = SavedRouteSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -236,8 +247,32 @@ class SavedRouteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return SavedRoute.objects.filter(user=self.request.user)
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        if all(data.get(f) is not None for f in COORD_FIELDS):
+            for f in COORD_FIELDS:
+                data[f] = round(data[f], 5)
+            existing = self.get_queryset().filter(**{f: data[f] for f in COORD_FIELDS}).first()
+            if existing:
+                return Response(self.get_serializer(existing).data, status=status.HTTP_200_OK)
+
+        serializer.save(user=request.user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+# -------------------------------
+# -------------------------------
+class IssueReportCreateView(generics.CreateAPIView):
+    serializer_class = IssueReportSerializer
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "reports"
+
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        user = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(user=user)
 
 
 # -------------------------------
@@ -247,6 +282,13 @@ class UserSerializer(ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "username", "email", "first_name", "last_name"]
+
+    def validate_email(self, value):
+        value = value.strip()
+        taken = User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk)
+        if value and taken.exists():
+            raise ValidationError("An account with that email already exists.")
+        return value
 
 
 class UserDetailView(generics.RetrieveUpdateAPIView):
@@ -265,6 +307,13 @@ class ChangePasswordSerializer(Serializer):
         user = self.context["request"].user
         if not user.check_password(value):
             raise ValidationError("Old password is not correct")
+        return value
+
+    def validate_new_password(self, value):
+        try:
+            validate_password(value, self.context["request"].user)
+        except DjangoValidationError as e:
+            raise ValidationError(list(e.messages))
         return value
 
 

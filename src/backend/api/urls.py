@@ -1,9 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
 from .geocode import GeocodeView
 from .views import (
     signup,
-    update_preferences,
+    PreferencesView,
+    IssueReportCreateView,
     CustomTokenObtainPairView,
     SavedRouteViewSet,
     UserDetailView,
@@ -33,13 +35,15 @@ urlpatterns = [
     # Auth
     path("signup/", signup, name="signup"),
     path("login/", CustomTokenObtainPairView.as_view(), name="login"),
+    path("token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
     # User account
     path("user/", UserDetailView.as_view(), name="user-detail"),
     path("user/change_password/", ChangePasswordView.as_view(), name="change-password"),
     # Routes & Preferences
     path("plan/", PlanJourneyView.as_view(), name="plan-journey"),
     path("geocode/", GeocodeView.as_view(), name="geocode"),
-    path("preferences/", update_preferences, name="update_preferences"),
+    path("preferences/", PreferencesView.as_view(), name="preferences"),
+    path("reports/", IssueReportCreateView.as_view(), name="reports"),
     # All registered API endpoints
     path("", include(router.urls)),
 ]

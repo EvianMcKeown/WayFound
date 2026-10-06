@@ -21,8 +21,13 @@ class SavedRoute(models.Model):
         on_delete=models.CASCADE,
         related_name="saved_routes"
     )
+    name = models.CharField(max_length=100, blank=True)
     start_location = models.CharField(max_length=255)
     end_location = models.CharField(max_length=255)
+    origin_lat = models.FloatField(null=True, blank=True)
+    origin_lon = models.FloatField(null=True, blank=True)
+    dest_lat = models.FloatField(null=True, blank=True)
+    dest_lon = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -30,6 +35,35 @@ class SavedRoute(models.Model):
 
     def __str__(self):
         return f"{self.user.username}: {self.start_location} → {self.end_location}"
+
+
+class IssueReport(models.Model):
+    class Category(models.TextChoices):
+        WRONG_TIME = "wrong_time", "Wrong time or timetable"
+        STOP_LOCATION = "stop_location", "Stop in the wrong place"
+        MISSING = "missing", "Missing route or stop"
+        APP = "app", "Problem with the app"
+        OTHER = "other", "Something else"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        RESOLVED = "resolved", "Resolved"
+
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="issue_reports"
+    )
+    category = models.CharField(max_length=20, choices=Category.choices)
+    description = models.TextField(max_length=2000)
+    contact_email = models.EmailField(blank=True)
+    context = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_category_display()} ({self.created_at:%Y-%m-%d})"
 
 
 # ----------------------------

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from pathlib import Path
 import sys
 
@@ -120,7 +121,13 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.AllowAny",  # for now, open API; tighten later
     ),
-    "DEFAULT_THROTTLE_RATES": {"geocode": "60/min"},
+    "DEFAULT_THROTTLE_CLASSES": ("rest_framework.throttling.ScopedRateThrottle",),
+    "DEFAULT_THROTTLE_RATES": {"geocode": "60/min", "reports": "5/hour"},
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
 GEOCODER_URL = "https://photon.komoot.io/api/"
