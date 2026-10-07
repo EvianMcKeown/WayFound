@@ -408,7 +408,7 @@ export default function Home() {
                 <button
                     type="button"
                     onClick={() => setSearchOpen(true)}
-                    className="flex items-center gap-2 rounded-xl border border-mist-300 bg-white px-3 py-3 text-left text-base text-mist-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
+                    className="flex items-center gap-2 h-11 rounded-xl border border-mist-300 bg-white px-3 text-left text-base text-mist-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
                 >
                     <SearchIcon className="h-5 w-5 text-mist-700" />
                     Where to?
