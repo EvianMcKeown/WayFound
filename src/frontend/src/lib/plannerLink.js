@@ -11,13 +11,15 @@ export function plannerLink(origin, destination) {
 }
 
 export function savedRouteLink(r) {
+    const alt = r.route_signature ? { alt: r.route_signature } : {};
     if ([r.origin_lat, r.origin_lon, r.dest_lat, r.dest_lon].every((v) => v != null)) {
-        return plannerLink(
+        const link = plannerLink(
             { lat: r.origin_lat, lon: r.origin_lon, label: r.start_location },
             { lat: r.dest_lat, lon: r.dest_lon, label: r.end_location }
         );
+        return r.route_signature ? `${link}&${new URLSearchParams(alt)}` : link;
     }
-    return `/?${new URLSearchParams({ from: r.start_location, to: r.end_location })}`;
+    return `/?${new URLSearchParams({ from: r.start_location, to: r.end_location, ...alt })}`;
 }
 
 function parsePlace(value, label) {
@@ -35,5 +37,6 @@ export function readPlannerLink(params) {
     if (!from || !to) return null;
     const a = parsePlace(from, params.get("fromLabel"));
     const b = parsePlace(to, params.get("toLabel"));
-    return a && b ? { places: [a, b] } : { text: [from, to] };
+    const alt = params.get("alt") || null;
+    return a && b ? { places: [a, b], alt } : { text: [from, to], alt };
 }

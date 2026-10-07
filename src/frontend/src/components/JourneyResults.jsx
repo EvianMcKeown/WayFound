@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { MODE_STYLE, hasApproximate } from "../lib/journey";
 import { Button, Panel, TextLink } from "./ui";
 import ModeBadge from "./ModeBadge";
+import RouteOptions, { CompareToggle } from "./RouteOptions";
 import { BookmarkIcon } from "./icons";
 import { formatDuration, minsToClock, minsToDayClock } from "../lib/time";
 
@@ -75,6 +76,7 @@ function reportContext(journey) {
         algorithm: journey.algorithm,
         departure: journey.departure,
         arrival: journey.arrival,
+        option: { rank: journey.rank ?? 0, signature: journey.signature ?? null },
         legs: journey.legs.map(({ kind, routeName, routeId, tripId, fromName, toName, arrival, minutes }) => ({
             kind, routeName, routeId, tripId, fromName, toName, arrival, minutes,
         })),
@@ -189,11 +191,22 @@ export function NoRouteCard({ journey, className = "" }) {
     );
 }
 
-export default function JourneyResults({ journey, onSave, saving, saved, signedIn }) {
+export function TripCompare({ compare, className = "" }) {
+    if (!compare?.supported) return null;
+    return (
+        <div className={`flex flex-col gap-2 ${className}`}>
+            <CompareToggle open={compare.open} onToggle={compare.onToggle} chosen={compare.activeIndex > 0 ? compare.activeIndex : null} />
+            {compare.open && <RouteOptions {...compare} />}
+        </div>
+    );
+}
+
+export default function JourneyResults({ journey, onSave, saving, saved, signedIn, compare }) {
     if (journey.status === "none") return <NoRouteCard journey={journey} className="pointer-events-auto" />;
     return (
         <Panel as="section" tone="glass" aria-label="Journey result" className="pointer-events-auto flex flex-col gap-3 p-4">
             <TripHeadline journey={journey} />
+            <TripCompare compare={compare} />
             <TripStats journey={journey} />
             <TripLegs journey={journey} />
             <TripSave onSave={onSave} saving={saving} saved={saved} signedIn={signedIn} />

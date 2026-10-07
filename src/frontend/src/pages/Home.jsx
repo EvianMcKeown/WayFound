@@ -4,10 +4,11 @@ import AppShell, { HEADER_HEIGHT_PX } from "../components/AppShell";
 import BottomSheet from "../components/BottomSheet";
 import JourneyResults, { NoRouteCard, TripHeadline, TripLegs, TripModes, TripReport, TripSave, TripStats } from "../components/JourneyResults";
 import MapView from "../components/MapView";
+import RouteOptions, { CompareToggle } from "../components/RouteOptions";
 import PlaceSearch from "../components/PlaceSearch";
 import { apiFetch } from "../lib/api";
 import { useSession } from "../lib/auth";
-import { buildLegs, summarise } from "../lib/journey";
+import { buildLegs, buildOption, summarise } from "../lib/journey";
 import { readPlannerLink } from "../lib/plannerLink";
 import { DAYS, nowAsPlannerInput } from "../lib/time";
 import { Alert, Button, Checkbox, Field, Panel, Segmented } from "../components/ui";
@@ -15,6 +16,8 @@ import { ChevronIcon, CloseIcon, EditIcon, LocateIcon, SearchIcon, SwapIcon } fr
 
 const OVERLAY_QUERY = "(min-width: 1024px)";
 const PANEL_WIDTH_PX = 384;
+const NO_ALTS = [];
+const ALTERNATIVES = 5;
 const ALGORITHMS = [
     { label: "RAPTOR", value: false },
     { label: "Dijkstra", value: true },
@@ -133,6 +136,12 @@ export default function Home() {
     const [saving, setSaving] = useState(false);
     const [savedId, setSavedId] = useState(null);
     const planCtrl = useRef(null);
+    const altCtrl = useRef(null);
+    const lastPlan = useRef(null);
+    const [compareOpen, setCompareOpen] = useState(false);
+    const [alts, setAlts] = useState({ status: "idle", items: [] });
+    const [activeIndex, setActiveIndex] = useState(0);
+    const [hover, setHover] = useState(null);
     const overlay = useMediaQuery(OVERLAY_QUERY);
 
     const [searchOpen, setSearchOpen] = useState(false);
@@ -140,10 +149,23 @@ export default function Home() {
     const [tripExpanded, setTripExpanded] = useState(false);
     const [sheetHeight, setSheetHeight] = useState(0);
 
-    const legs = useMemo(() => journey?.legs ?? [], [journey]);
+    const active = useMemo(() => {
+        if (journey?.status !== "ok") return journey;
+        const item = alts.status === "ready" ? alts.items[activeIndex] : null;
+        return item ? { ...journey, ...item } : journey;
+    }, [journey, alts, activeIndex]);
+    const legs = useMemo(() => active?.legs ?? [], [active]);
+    const altRoutes = useMemo(
+        () =>
+            compareOpen && alts.status === "ready"
+                ? alts.items.map((item, index) => ({ index, legs: item.legs })).filter((r) => r.index !== activeIndex)
+                : NO_ALTS,
+        [compareOpen, alts, activeIndex]
+    );
 
-    const plan = async (from, to) => {
+    const plan = async (from, to, { alt = null } = {}) => {
         planCtrl.current?.abort();
+        altCtrl.current?.abort();
         const ctrl = new AbortController();
         planCtrl.current = ctrl;
 
@@ -160,6 +182,24 @@ export default function Home() {
             use_dijkstra: useDijkstra,
         };
 
+        const body = {
+            source_lat: from.lat,
+            source_lon: from.lon,
+            target_lat: to.lat,
+            target_lon: to.lon,
+            day,
+            time,
+            max_rounds: 5,
+            minimize_walking: minimizeWalking,
+            minimize_stops: minimizeStops,
+            use_dijkstra: useDijkstra,
+        };
+        lastPlan.current = { from, to, departure, body };
+        setCompareOpen(false);
+        setAlts({ status: "idle", items: [] });
+        setActiveIndex(0);
+        setHover(null);
+
         setPlanning(true);
         setMessage(null);
         setEditing(false);
@@ -169,18 +209,7 @@ export default function Home() {
             const data = await apiFetch("/api/plan/", {
                 method: "POST",
                 signal: ctrl.signal,
-                body: {
-                    source_lat: from.lat,
-                    source_lon: from.lon,
-                    target_lat: to.lat,
-                    target_lon: to.lon,
-                    day,
-                    time,
-                    max_rounds: 5,
-                    minimize_walking: minimizeWalking,
-                    minimize_stops: minimizeStops,
-                    use_dijkstra: useDijkstra,
-                },
+                body: alt && !useDijkstra ? { ...body, alternatives: ALTERNATIVES } : body,
             });
             const pathObjs = data.path_objs || [];
             if (data.earliest_arrival == null || pathObjs.length === 0) {
@@ -199,6 +228,13 @@ export default function Home() {
                 areaRadius: data.area_radius_m,
                 request,
             });
+            if (alt && data.journeys) {
+                const items = data.journeys.map((j) => buildOption(j, from, to, departure));
+                const at = items.findIndex((o) => o.signature === alt);
+                setAlts({ status: "ready", items });
+                if (at >= 0) setActiveIndex(at);
+                else setMessage({ text: "The route you saved is not available at this time, so this is the best one.", error: false });
+            }
         } catch (err) {
             if (err.name === "AbortError") return;
             setJourney(null);
@@ -215,6 +251,33 @@ export default function Home() {
             return;
         }
         plan(origin, destination);
+    };
+
+    const loadAlternatives = async () => {
+        const last = lastPlan.current;
+        if (!last) return;
+        altCtrl.current?.abort();
+        const ctrl = new AbortController();
+        altCtrl.current = ctrl;
+        setAlts({ status: "loading", items: [] });
+        try {
+            const data = await apiFetch("/api/plan/", {
+                method: "POST",
+                signal: ctrl.signal,
+                body: { ...last.body, alternatives: ALTERNATIVES },
+            });
+            const items = (data.journeys ?? []).map((j) => buildOption(j, last.from, last.to, last.departure));
+            setAlts({ status: "ready", items });
+        } catch (err) {
+            if (err.name === "AbortError") return;
+            setAlts({ status: "error", items: [] });
+        }
+    };
+
+    const selectOption = (i) => {
+        if (i === activeIndex) return;
+        setActiveIndex(i);
+        setSavedId(null);
     };
 
     const swap = () => {
@@ -268,7 +331,7 @@ export default function Home() {
         }
         setSaving(true);
         try {
-            const { request } = journey;
+            const { request } = active;
             const saved = await apiFetch("/api/saved-routes/", {
                 method: "POST",
                 auth: true,
@@ -279,6 +342,7 @@ export default function Home() {
                     origin_lon: request.origin.lon,
                     dest_lat: request.destination.lat,
                     dest_lon: request.destination.lon,
+                    route_signature: active.rank > 0 ? active.signature : "",
                 },
             });
             setSavedId(saved.id);
@@ -297,7 +361,7 @@ export default function Home() {
             const [a, b] = link.places;
             setOrigin(a);
             setDestination(b);
-            plan(a, b);
+            plan(a, b, { alt: link.alt });
         } else {
             (async () => {
                 try {
@@ -307,7 +371,7 @@ export default function Home() {
                     if (!a || !b) throw new Error("Could not find one of the saved locations.");
                     setOrigin(a);
                     setDestination(b);
-                    plan(a, b);
+                    plan(a, b, { alt: link.alt });
                 } catch (err) {
                     if (!cancelled) setMessage({ text: err.message, error: true });
                 }
@@ -319,7 +383,13 @@ export default function Home() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    useEffect(() => () => planCtrl.current?.abort(), []);
+    useEffect(
+        () => () => {
+            planCtrl.current?.abort();
+            altCtrl.current?.abort();
+        },
+        []
+    );
 
     const searchProps = {
         origin, destination, setOrigin, setDestination, swap, day, time, setWhen, planning, onSubmit,
@@ -332,6 +402,23 @@ export default function Home() {
             onStops: setOption(setMinimizeStops),
         },
     };
+    const supportsCompare = journey?.status === "ok" && !journey.request.use_dijkstra;
+    const toggleDesktop = () => {
+        if (!compareOpen && (alts.status === "idle" || alts.status === "error")) loadAlternatives();
+        setCompareOpen((o) => !o);
+        setHover(null);
+    };
+    const compare = (open, onToggle) => ({
+        supported: supportsCompare,
+        open,
+        onToggle,
+        status: alts.status === "idle" ? "loading" : alts.status,
+        items: alts.items,
+        activeIndex,
+        onSelect: selectOption,
+        onHover: setHover,
+        onRetry: loadAlternatives,
+    });
     const alert = message && (
         <Alert tone={message.error ? "error" : "success"} role="status" className="pointer-events-auto">
             {message.text}
@@ -348,7 +435,7 @@ export default function Home() {
                         </Panel>
                         {alert}
                         {journey && (
-                            <JourneyResults journey={journey} onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} />
+                            <JourneyResults journey={active} onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} compare={compare(compareOpen, toggleDesktop)} />
                         )}
                     </aside>
                     <div className="absolute inset-0">
@@ -356,6 +443,8 @@ export default function Home() {
                             origin={origin}
                             destination={destination}
                             legs={legs}
+                            altRoutes={altRoutes}
+                            highlight={compareOpen ? hover : null}
                             areaRadius={journey?.areaRadius}
                             insetLeft={PANEL_WIDTH_PX}
                             insetTop={HEADER_HEIGHT_PX}
@@ -370,6 +459,22 @@ export default function Home() {
     const tripOk = journey?.status === "ok";
     const showForm = hasTrip ? editing : searchOpen;
     const summary = <SearchSummary origin={origin} destination={destination} day={day} time={time} onEdit={() => setEditing(true)} />;
+
+    const toggleMobile = () => {
+        if (compareOpen && tripExpanded) {
+            setCompareOpen(false);
+        } else {
+            if (!compareOpen && (alts.status === "idle" || alts.status === "error")) loadAlternatives();
+            setCompareOpen(true);
+            setTripExpanded(true);
+        }
+        setHover(null);
+    };
+
+    const chooseOnSheet = (i) => {
+        selectOption(i);
+        setTripExpanded(false);
+    };
 
     const pull = !showForm && !tripOk ? () => (hasTrip ? setEditing(true) : setSearchOpen(true)) : undefined;
 
@@ -394,7 +499,7 @@ export default function Home() {
                         aria-label="Show the trip again"
                         className="flex items-center gap-2 rounded-lg bg-mist-100 px-3 py-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
                     >
-                        <span className="text-base font-semibold text-mist-900">{Math.round(journey.summary.duration)} min</span>
+                        <span className="text-base font-semibold text-mist-900">{Math.round(active.summary.duration)} min</span>
                         <span className="flex-1 text-sm text-mist-700">trip found · tap to show</span>
                         <ChevronIcon open className="h-4 w-4 text-mist-600" />
                     </button>
@@ -428,8 +533,11 @@ export default function Home() {
         peek = (
             <div className="flex flex-col gap-3 px-4 pb-6">
                 {alert}
-                <TripHeadline journey={journey} />
-                <TripModes journey={journey} />
+                <TripHeadline journey={active} />
+                <TripModes journey={active} />
+                {supportsCompare && (
+                    <CompareToggle open={compareOpen && tripExpanded} onToggle={toggleMobile} chosen={activeIndex > 0 ? activeIndex : null} />
+                )}
                 <div className="flex gap-2">
                     <TripSave onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} className="flex-1" />
                     <Button onClick={() => setTripExpanded((x) => !x)} aria-expanded={tripExpanded}>
@@ -440,9 +548,10 @@ export default function Home() {
         );
         more = (
             <div className="flex flex-col gap-3 px-4 pb-6">
-                <TripStats journey={journey} />
-                <TripLegs journey={journey} />
-                <TripReport journey={journey} />
+                {compareOpen && supportsCompare && <RouteOptions {...compare(true, toggleMobile)} onSelect={chooseOnSheet} />}
+                <TripStats journey={active} />
+                <TripLegs journey={active} />
+                <TripReport journey={active} />
             </div>
         );
     }
@@ -457,6 +566,8 @@ export default function Home() {
                         origin={origin}
                         destination={destination}
                         legs={legs}
+                        altRoutes={altRoutes}
+                        highlight={compareOpen ? hover : null}
                         areaRadius={journey?.areaRadius}
                         insetBottom={Math.min(sheetHeight, 560)}
                     />

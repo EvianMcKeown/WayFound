@@ -77,6 +77,19 @@ export function summarise(legs, departure, arrival) {
     };
 }
 
+export function buildOption(j, origin, destination, departure) {
+    const legs = buildLegs(j.path_objs || [], origin, destination);
+    return {
+        legs,
+        departure,
+        arrival: j.earliest_arrival,
+        summary: summarise(legs, departure, j.earliest_arrival),
+        rank: j.rank,
+        labels: j.labels ?? [],
+        signature: j.signature,
+    };
+}
+
 export function journeyStops(legs) {
     const seen = new Map();
     const add = (coord, name, approx, role) => {

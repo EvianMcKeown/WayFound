@@ -79,6 +79,10 @@ body {
   60% { transform: scale(1.12); }
   100% { transform: scale(1); }
 }
+@keyframes ico-draw {
+  from { stroke-dashoffset: 16; }
+  to { stroke-dashoffset: 0; }
+}
 @keyframes ico-rise {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -110,6 +114,8 @@ body {
   .group:hover .ico-locate-dot { r: 3.5px; }
   .ico-locate-ring { opacity: 0; }
   [data-busy="true"] .ico-locate-ring { animation: ico-pulse 1400ms ease-out infinite; }
+
+  .ico-check { stroke-dasharray: 16; animation: ico-draw var(--duration-slow) var(--ease-out-soft) both; }
 
   .ico-bookmark[data-on="true"] { animation: ico-pop 300ms var(--ease-out-soft); }
 

@@ -49,6 +49,14 @@ const RESULT = `document.querySelector('section[aria-label="Journey result"], se
 const clickText = (selector, text) =>
     `[...document.querySelectorAll('${selector}')].find((b) => b.textContent.trim() === '${text}')?.click()`;
 
+const plannerNow = () => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return { day: (now.getDay() + 6) % 7, time: `${pad(now.getHours())}:${pad(now.getMinutes())}` };
+};
+
+const MANY_ROUTES = "/?from=-33.97800,18.57000&fromLabel=Gugulethu&to=-33.90250,18.42070&toLabel=V%26A%20Waterfront";
+
 const replan = (day, time) => async (page) => {
     await page.waitFor("!!window.__map", "planner");
     await page.waitFor(`!!${RESULT}?.innerText.includes('→') || document.body.innerText.includes('No public transport route found')`, "first plan");
@@ -57,6 +65,16 @@ const replan = (day, time) => async (page) => {
     await page.eval(`(${SET_FIELD})("#day, #day-sheet", "${day}"); (${SET_FIELD})("#time, #time-sheet", "${time}")`);
     await sleep(300);
     await page.eval(`document.querySelector('form button[type=submit]').click()`);
+};
+
+const openCompare = async (page) => {
+    await replan(1, "08:00")(page);
+    await page.waitFor(`${RESULT}?.innerText.includes("08:00 →")`, "08:00 journey result");
+    await sleep(500);
+    await page.waitFor("[...document.querySelectorAll('button')].some((b) => /^Compare routes|in use · compare/.test(b.textContent.trim()))", "Compare routes button");
+    await page.eval(`[...document.querySelectorAll('button')].find((b) => /^Compare routes|in use · compare/.test(b.textContent.trim()))?.click()`);
+    await page.waitFor("document.querySelectorAll('[role=radio]').length > 0", "route options");
+    await sleep(600);
 };
 
 const mapIdle = (page) =>
@@ -103,6 +121,49 @@ const SHOTS = [
             await sleep(500);
             await p.eval(`${clickText("button", "Steps")}`);
             await sleep(600);
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "planner-compare",
+        path: MANY_ROUTES,
+        setup: async (p) => {
+            await openCompare(p);
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "planner-compare-pick",
+        path: MANY_ROUTES,
+        setup: async (p) => {
+            await openCompare(p);
+            const count = await p.eval(`document.querySelectorAll('[role=radio]').length`);
+            if (count < 2) throw new Error("expected at least two route options for the README journey, got " + count);
+            const second = await p.eval(`document.querySelectorAll('[role=radio]')[1].querySelector('span > span').textContent.trim()`);
+            await p.eval(`document.querySelectorAll('[role=radio]')[1].click()`);
+            await sleep(500);
+            const checked = await p.eval(`document.querySelectorAll('[role=radio]')[1]?.getAttribute('aria-checked')`);
+            const shown = await p.eval(`${RESULT}?.innerText`);
+            if (checked !== "true" && !shown.includes(second)) throw new Error("choosing the second option did not make it the route in use");
+            if (!shown.includes(second)) throw new Error("headline does not show the chosen option's duration " + second);
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "planner-saved-alternative",
+        path: async () => {
+            const body = { source_lat: -33.978, source_lon: 18.57, target_lat: -33.9025, target_lon: 18.4207, ...plannerNow(), alternatives: 5 };
+            const res = await fetch((args.api ?? "http://127.0.0.1:8000") + "/api/plan/", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+            const second = (await res.json()).journeys?.[1];
+            if (!second) throw new Error("the planner returned no second option for the many-routes trip");
+            globalThis.__altDuration = second.summary.duration;
+            return `${MANY_ROUTES}&alt=${encodeURIComponent(second.signature)}`;
+        },
+        setup: async (p) => {
+            await p.waitFor(`${RESULT}?.innerText.includes("Route 2 in use")`, "the saved alternative in use");
+            const shown = await p.eval(`${RESULT}?.innerText`);
+            const want = Math.floor(globalThis.__altDuration / 60) + " h " + String(globalThis.__altDuration % 60).padStart(2, "0") + " min";
+            if (!shown.includes(want)) throw new Error("expected the saved alternative (" + want + ") to be shown, got: " + shown.slice(0, 120));
         },
         ready: mapIdle,
     },
@@ -419,7 +480,7 @@ try {
             if (shot.only && shot.only !== label) continue;
             await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 2, mobile: label === "mobile" });
             await page.stub(shot.stub ?? null);
-            await page.goto(shot.path);
+            await page.goto(typeof shot.path === "function" ? await shot.path() : shot.path);
             await page.eval("document.fonts.ready.then(() => true)");
             if (shot.setup) await shot.setup(page);
             if (shot.ready) await shot.ready(page);

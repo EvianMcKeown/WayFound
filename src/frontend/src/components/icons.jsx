@@ -58,3 +58,9 @@ export const MenuIcon = ({ className = "h-5 w-5", open = false }) => (
         <path className="ico-part" d="M3 15h14" style={open ? { transform: "translateY(-5px) rotate(-45deg)" } : undefined} />
     </svg>
 );
+
+export const CheckIcon = ({ className = "h-4 w-4" }) => (
+    <svg {...base} strokeWidth={2.2} className={className}>
+        <path className="ico-check" d="M4.5 10.5l3.5 3.5 7.5-8" />
+    </svg>
+);

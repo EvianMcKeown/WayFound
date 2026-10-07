@@ -18,6 +18,7 @@ function pin(color) {
     return el;
 }
 
+const EMPTY = [];
 const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const FADE_LAYERS = [
     ["legs-casing", "line-opacity"],
@@ -45,6 +46,20 @@ function addOverlayLayers(map) {
         type: "line",
         source: "areas",
         paint: { "line-color": "#9a7a2e", "line-width": 1.5, "line-dasharray": [2, 2] },
+    });
+    map.addSource("alts", { type: "geojson", data: empty });
+    map.addLayer({
+        id: "alts-line",
+        type: "line",
+        source: "alts",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+            "line-color": "#5f7062",
+            "line-width": ["case", ["get", "hl"], 6, 3],
+            "line-opacity": ["case", ["get", "hl"], 0.85, 0.45],
+            "line-width-transition": { duration: 200 },
+            "line-opacity-transition": { duration: 200 },
+        },
     });
     map.addSource("legs", { type: "geojson", data: empty });
     map.addLayer({
@@ -102,6 +117,8 @@ export default function MapView({
     origin,
     destination,
     legs,
+    altRoutes = EMPTY,
+    highlight = null,
     areaRadius = DEFAULT_AREA_RADIUS_M,
     insetLeft = 0,
     insetTop = 0,
@@ -112,8 +129,8 @@ export default function MapView({
     const markersRef = useRef([]);
     const readyRef = useRef(false);
     const boundsRef = useRef(null);
-    const propsRef = useRef({ origin, destination, legs, areaRadius, insetLeft, insetTop, insetBottom });
-    propsRef.current = { origin, destination, legs, areaRadius, insetLeft, insetTop, insetBottom };
+    const propsRef = useRef({ origin, destination, legs, altRoutes, highlight, areaRadius, insetLeft, insetTop, insetBottom });
+    propsRef.current = { origin, destination, legs, altRoutes, highlight, areaRadius, insetLeft, insetTop, insetBottom };
 
     const applyInsets = () => {
         const map = mapRef.current;
@@ -122,6 +139,22 @@ export default function MapView({
         map.setPadding({ left: insetLeft, top: insetTop, right: 0, bottom: insetBottom });
         const topRight = containerRef.current?.querySelector(".maplibregl-ctrl-top-right");
         if (topRight) topRight.style.top = `${insetTop}px`;
+    };
+
+    const drawAlts = () => {
+        const map = mapRef.current;
+        if (!map || !readyRef.current) return;
+        const { altRoutes, highlight } = propsRef.current;
+        map.getSource("alts").setData({
+            type: "FeatureCollection",
+            features: altRoutes.flatMap((r) =>
+                r.legs.map((l) => ({
+                    type: "Feature",
+                    properties: { hl: r.index === highlight },
+                    geometry: { type: "LineString", coordinates: l.shape ?? [l.from, l.to] },
+                }))
+            ),
+        });
     };
 
     const draw = () => {
@@ -186,6 +219,7 @@ export default function MapView({
 
         boundsRef.current = bounds.isEmpty() ? null : bounds;
         fit(map.loaded() ? 600 : 0);
+        drawAlts();
     };
 
     const fit = (duration) => {
@@ -254,6 +288,12 @@ export default function MapView({
     }, [insetLeft, insetTop, insetBottom]);
 
     useEffect(draw, [origin, destination, legs]);
+    useEffect(drawAlts, [altRoutes, highlight]);
+    useEffect(() => {
+        if (!altRoutes.length || !boundsRef.current) return;
+        altRoutes.forEach((r) => r.legs.forEach((l) => (l.shape ?? [l.from, l.to]).forEach((pt) => boundsRef.current.extend(pt))));
+        fit(600);
+    }, [altRoutes]);
 
     return <div ref={containerRef} className="h-full w-full" role="region" aria-label="Map" />;
 }

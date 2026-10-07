@@ -23,6 +23,7 @@ Unlike traditional shortest-path algorithms (e.g., Dijkstra's), RAPTOR works in 
 ### Features
 - Journey planning from any address or place to any other, with the RAPTOR algorithm (or Dijkstra, under Options for comparison).  
 - Walking to and from stops, transfers, and route preferences (minimise walking, fewer transfers).  
+- Compare routes: the best route is the default, and "Compare routes" shows up to four more, ranked by arrival time and labelled "Fastest", "Fewest transfers" and "Least walking". Choose any of them as the route in use; a saved route remembers the choice.  
 - Legs are shown per operator, each in its own colour (MyCiTi, Golden Arrow, Metrorail) with a walk, bus or train badge.  
 - Responsive layout: floating panels over the map on desktop, a map-first bottom sheet on mobile.  
 - Small, calm animations: icons that turn, pulse and morph, a route that fades in on the map, and legs that rise in one by one. They are switched off for anyone who prefers reduced motion.  
@@ -30,6 +31,12 @@ Unlike traditional shortest-path algorithms (e.g., Dijkstra's), RAPTOR works in 
 - Issue reports, attached to the journey or "no route" result they came from.  
 - Django REST API for planning, geocoding, accounts, saved routes, preferences and reports.  
 - GTFS repair, cleaning and rebuild scripts for the operator timetables.  
+
+**Comparing routes.** Open "Compare routes" under the trip headline (on a phone it is in the sheet, and opening it expands the sheet) to see the other options as cards. The other routes are drawn faintly on the map, and hovering or focusing a card previews it. Choosing a card makes it the route on the map, in the itinerary, in Save and in a problem report.
+
+| Desktop | Phone |
+|---|---|
+| ![Desktop planner with the route options open: the fastest route in use and a slower one with fewer minutes of walking](docs/screenshots/planner-compare.png) | ![Phone planner with the sheet expanded to the route options](docs/screenshots/planner-mobile-compare.png) |
 
 ---
 
