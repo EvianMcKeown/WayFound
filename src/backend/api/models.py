@@ -28,6 +28,7 @@ class SavedRoute(models.Model):
     origin_lon = models.FloatField(null=True, blank=True)
     dest_lat = models.FloatField(null=True, blank=True)
     dest_lon = models.FloatField(null=True, blank=True)
+    route_signature = models.CharField(max_length=500, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

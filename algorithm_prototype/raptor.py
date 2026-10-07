@@ -5,7 +5,7 @@ from os import name, walk
 import queue
 from re import I
 import sys
-from typing import Any, List, Dict, Literal, Optional, Tuple
+from typing import Any, List, Dict, Literal, Optional, Set, Tuple
 from math import ceil, radians, cos, sin, asin, sqrt
 from rtree import index
 
@@ -425,6 +425,44 @@ class helper_functions:
         return True
 
 
+PRUNE = True
+
+
+@dataclass
+class PreparedNetwork:
+    stop_ids: List[str]
+    id_to_idx: Dict[str, int]
+    idx_to_id: Dict[int, str]
+    transfer_adj: List[List[Tuple[int, int]]]
+    routes_stop_indices: Dict[str, List[int]]
+    trip_last_time: Dict[str, List[int]]
+    trip_first_time: Dict[str, List[int]]
+
+
+def prepare_network(
+    stops: Dict[str, Stop], routes: Dict[str, Route], transfers: List[Transfer]
+) -> PreparedNetwork:
+    check_transfer_loops(transfers)  # check no self loops in transfers
+    stop_ids = list(stops.keys())
+    id_to_idx = {sid: i for i, sid in enumerate(stop_ids)}
+    idx_to_id = {i: sid for sid, i in id_to_idx.items()}
+    transfer_adj: List[List[Tuple[int, int]]] = [[] for _ in stop_ids]
+    for t in transfers:
+        transfer_adj[id_to_idx[t.from_stop.id]].append((id_to_idx[t.to_stop.id], t.walking_time))
+    routes_stop_indices = {rid: [id_to_idx[s.id] for s in route.stops] for rid, route in routes.items()}
+    trip_last_time = {
+        rid: [max((t for t in trip.departure_times if t != INF), default=-1) for trip in route.trips]
+        for rid, route in routes.items()
+    }
+    trip_first_time = {
+        rid: [min((t for t in trip.departure_times if t != INF), default=INF) for trip in route.trips]
+        for rid, route in routes.items()
+    }
+    return PreparedNetwork(
+        stop_ids, id_to_idx, idx_to_id, transfer_adj, routes_stop_indices, trip_last_time, trip_first_time
+    )
+
+
 def raptor_algo(
     stops: Dict[str, Stop],
     routes: Dict[str, Route],
@@ -434,6 +472,9 @@ def raptor_algo(
     departure_time: int,
     max_rounds: int = 10,
     debug: bool = True,
+    banned_routes: Optional[Set[str]] = None,
+    prepared: Optional[PreparedNetwork] = None,
+    latest_arrival: int = INF,
 ) -> Tuple[Dict[str, int], List[Dict[str, Any]]]:
     """RAPTOR - Round bAsed Public Transit Optimised Router.
 
@@ -448,7 +489,11 @@ def raptor_algo(
             - List of steps (the reconstructed fastest path from source to target).
     """
 
-    check_transfer_loops(transfers)  # check no self loops in transfers
+    if prepared is None:
+        prepared = prepare_network(stops, routes, transfers)
+    id_to_idx, idx_to_id = prepared.id_to_idx, prepared.idx_to_id
+    transfer_adj, routes_stop_indices = prepared.transfer_adj, prepared.routes_stop_indices
+    n = len(prepared.stop_ids)
 
     if debug:
         # detect accidental duplicates or bad trip times before running
@@ -460,25 +505,6 @@ def raptor_algo(
                     raise ValueError(
                         f"In route_id '{r.id}', trip_id '{t.id}': {e}"
                     ) from e
-
-    # build index mapping for array storage
-    stop_ids = list(stops.keys())
-    id_to_idx: Dict[str, int] = {sid: i for i, sid in enumerate(stop_ids)}
-    idx_to_id: Dict[int, str] = {i: sid for sid, i in id_to_idx.items()}
-    n = len(stops.keys())
-
-    # adjacency lists for transfers (indices) - walking time from stop u to v
-    # TODO: THIS TAKES STUPIDLY LONG - DO IN PREPROCESSING
-    transfer_adj: List[List[Tuple[int, int]]] = [[] for _ in range(n)]
-    for t in transfers:
-        u = id_to_idx[t.from_stop.id]
-        v = id_to_idx[t.to_stop.id]
-        transfer_adj[u].append((v, t.walking_time))
-
-    # compute route-stop indices
-    routes_stop_indices: Dict[str, List[int]] = {}
-    for rid, route in routes.items():
-        routes_stop_indices[rid] = [id_to_idx[s.id] for s in route.stops]
 
     target_idx: Optional[int] = id_to_idx[target_id] if target_id in id_to_idx else None
 
@@ -537,6 +563,8 @@ def raptor_algo(
         # 1: Accumulate routes serving marked stops from previous round
         Q: List[Tuple[str, int]] = []  # (route_id, first_marked_stop_index_in_route)
         for rid, route in routes.items():
+            if banned_routes and rid in banned_routes:
+                continue
             stop_indices = routes_stop_indices[rid]
             # find first marked index in the route
             first_marked_pos = None
@@ -557,7 +585,13 @@ def raptor_algo(
             stop_indices = routes_stop_indices[rid]
             num_stops_in_route = len(stop_indices)
 
-            for trip in cur_route.trips:
+            ready_min = min((prev[i] for i in stop_indices[start_pos:]), default=INF)
+            target_arrival = min(best[target_idx] if target_idx is not None else INF, latest_arrival) if PRUNE else INF
+            last_times = prepared.trip_last_time[rid]
+            first_times = prepared.trip_first_time[rid]
+            for trip_no, trip in enumerate(cur_route.trips):
+                if PRUNE and (last_times[trip_no] < ready_min or first_times[trip_no] >= target_arrival):
+                    continue
                 # check whether we can board the trip (on this route) at any stop
                 # Try to board at earliest possible stop
                 boarded_at = None
@@ -583,6 +617,8 @@ def raptor_algo(
                 # stop where we boarded
                 board_stop_idx = stop_indices[boarded_at]
                 board_time = trip.departure_times[boarded_at]
+                if board_time >= target_arrival:
+                    continue
 
                 # move along trip from boarded_at stop
                 # -> start look form stop after the boarding_at stop

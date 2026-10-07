@@ -68,6 +68,7 @@ class SavedRouteSerializer(serializers.ModelSerializer):
             "origin_lon",
             "dest_lat",
             "dest_lon",
+            "route_signature",
             "created_at",
         ]
 
@@ -159,6 +160,7 @@ class PlanRequestSerializer(serializers.Serializer):
     use_dijkstra = serializers.BooleanField(required=False, default=False)
     minimize_walking = serializers.BooleanField(required=False, default=False)
     minimize_stops = serializers.BooleanField(required=False, default=False)
+    alternatives = IntegerField(required=False, default=1, min_value=1, max_value=5)
     minimize_number_of_transfers = serializers.BooleanField(
         required=False, default=False
     )

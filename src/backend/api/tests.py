@@ -87,6 +87,20 @@ class SavedRouteTests(APITestCase):
         self.assertEqual(again.data["id"], first.data["id"])
         self.assertEqual(SavedRoute.objects.count(), 1)
 
+    def test_chosen_alternative_is_remembered_and_can_change(self):
+        first = self.client.post("/api/saved-routes/", {**self.ROUTE, "route_signature": "a>b|c>d"}, format="json")
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(first.data["route_signature"], "a>b|c>d")
+        same = self.client.post("/api/saved-routes/", self.ROUTE, format="json")
+        self.assertEqual(same.data["route_signature"], "a>b|c>d")
+        changed = self.client.post("/api/saved-routes/", {**self.ROUTE, "route_signature": ""}, format="json")
+        self.assertEqual(changed.data["route_signature"], "")
+        self.assertEqual(SavedRoute.objects.count(), 1)
+
+    def test_routes_without_a_choice_default_to_the_best(self):
+        resp = self.client.post("/api/saved-routes/", self.ROUTE, format="json")
+        self.assertEqual(resp.data["route_signature"], "")
+
     def test_label_only_routes_still_accepted(self):
         resp = self.client.post("/api/saved-routes/", {"start_location": "A", "end_location": "B"}, format="json")
         self.assertEqual(resp.status_code, 201)
@@ -184,3 +198,63 @@ class PlanEndpointTests(APITestCase):
         self.assertEqual([(m["mode"], m["from_stop_id"], m["stop_id"]) for m in moves],
                          [("transfer", "virtual_start", "virtual_end")])
         self.assertIsNone(data["source_stop"])
+
+    GUGULETHU = (-33.9780, 18.5700)
+    WATERFRONT = (-33.9025, 18.4207)
+
+    def test_alternatives_are_off_by_default(self):
+        data = self.plan(self.CT_STATION, self.CLAREMONT)
+        self.assertNotIn("journeys", data)
+
+    def test_alternatives_are_distinct_ranked_and_start_with_the_best(self):
+        best = self.plan(self.GUGULETHU, self.WATERFRONT)
+        data = self.plan(self.GUGULETHU, self.WATERFRONT, alternatives=5)
+        journeys = data["journeys"]
+        self.assertTrue(2 <= len(journeys) <= 5)
+        self.assertEqual(data["path_objs"], best["path_objs"])
+        self.assertEqual(journeys[0]["path_objs"], best["path_objs"])
+        self.assertEqual([j["rank"] for j in journeys], list(range(len(journeys))))
+        arrivals = [j["earliest_arrival"] for j in journeys]
+        self.assertEqual(arrivals, sorted(arrivals))
+        self.assertEqual(len({j["signature"] for j in journeys}), len(journeys))
+        for j in journeys:
+            self.assert_walks_only_at_the_ends(j["path_objs"])
+            self.assertEqual(j["summary"]["duration"], j["earliest_arrival"] - (1 * 1440 + 8 * 60))
+
+    def test_labels_name_the_option_that_is_best_at_something(self):
+        journeys = self.plan(self.GUGULETHU, self.WATERFRONT, alternatives=5)["journeys"]
+        self.assertIn("Fastest", journeys[0]["labels"])
+        for label, key in (("Fewest transfers", "transfers"), ("Least walking", "walking")):
+            labelled = [j for j in journeys if label in j["labels"]]
+            self.assertLessEqual(len(labelled), 1)
+            if labelled:
+                self.assertEqual(labelled[0]["summary"][key], min(j["summary"][key] for j in journeys))
+
+    def test_alternatives_range_is_validated(self):
+        body = {"source_lat": 0, "source_lon": 0, "target_lat": 1, "target_lon": 1, "day": 1, "time": "08:00"}
+        for n in (0, 6):
+            resp = self.client.post("/api/plan/", {**body, "alternatives": n}, format="json")
+            self.assertEqual(resp.status_code, 400)
+
+    def test_dijkstra_has_no_alternatives(self):
+        data = self.plan(self.GUGULETHU, self.WATERFRONT, alternatives=5, use_dijkstra=True)
+        self.assertNotIn("journeys", data)
+
+    def test_walk_only_trip_has_no_alternatives(self):
+        data = self.plan(self.CT_STATION, (-33.9250, 18.4230), alternatives=5)
+        self.assertLessEqual(len(data.get("journeys", [])), 1)
+
+    def test_pruning_never_changes_the_best_journey(self):
+        import algorithm_prototype.raptor as raptor
+
+        pairs = [(self.GUGULETHU, self.WATERFRONT), (self.CT_STATION, self.CLAREMONT), (self.WATERFRONT, self.GUGULETHU)]
+        try:
+            for a, b in pairs:
+                raptor.PRUNE = False
+                full = self.plan(a, b)
+                raptor.PRUNE = True
+                pruned = self.plan(a, b)
+                self.assertEqual(full["earliest_arrival"], pruned["earliest_arrival"])
+                self.assertEqual(full["path"], pruned["path"])
+        finally:
+            raptor.PRUNE = True

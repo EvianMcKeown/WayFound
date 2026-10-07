@@ -187,11 +187,11 @@ class PlanJourneyView(APIView):
             minimize_walking=minimize_walking,
             minimize_stops=minimize_stops,
             use_dijkstra=use_dijkstra,
+            alternatives=data.get("alternatives", 1),
         )
 
         # Minimal response
-        return Response(
-            {
+        body = {
                 "earliest_arrival": out.get("earliest_arrival"),
                 "path": out["path"],  # ID-based steps
                 "path_objs": out["path_objs"],  # JSON-safe enriched steps
@@ -200,9 +200,20 @@ class PlanJourneyView(APIView):
                 ),  # Include stop info for debugging
                 "target_stop": out.get("target_stop"),
                 "algorithm_used": "Dijkstra" if use_dijkstra else "RAPTOR",
-            },
-            status=status.HTTP_200_OK,
-        )
+        }
+        if "journeys" in out:
+            body["journeys"] = [
+                {
+                    "rank": j["rank"],
+                    "signature": j["signature"],
+                    "labels": j["labels"],
+                    "summary": j["summary"],
+                    "earliest_arrival": j["earliest_arrival"],
+                    "path_objs": j["path_objs"],
+                }
+                for j in out["journeys"]
+            ]
+        return Response(body, status=status.HTTP_200_OK)
 
 
 # @api_view(["POST"])
@@ -256,6 +267,10 @@ class SavedRouteViewSet(viewsets.ModelViewSet):
                 data[f] = round(data[f], 5)
             existing = self.get_queryset().filter(**{f: data[f] for f in COORD_FIELDS}).first()
             if existing:
+                signature = data.get("route_signature")
+                if signature is not None and signature != existing.route_signature:
+                    existing.route_signature = signature
+                    existing.save(update_fields=["route_signature"])
                 return Response(self.get_serializer(existing).data, status=status.HTTP_200_OK)
 
         serializer.save(user=request.user)

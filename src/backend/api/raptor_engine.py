@@ -4,7 +4,9 @@ import csv
 import math
 import threading
 from pathlib import Path
-from typing import Any, List, Dict, Tuple, Optional
+from typing import Any, List, Dict, Tuple, Optional, FrozenSet
+import heapq
+import time
 from datetime import datetime, timedelta
 
 from django.conf import settings
@@ -13,6 +15,7 @@ from algorithm_prototype.gtfs_reader import GTFSReader, INF
 from algorithm_prototype.raptor import (
     helper_functions as hf,
     raptor_algo,
+    prepare_network,
     reconstruct_path_objs,
     Stop,
     Route,
@@ -287,6 +290,7 @@ class RaptorEngine:
         use_dijkstra: bool = False,
         minimize_walking: bool = False,
         minimize_stops: bool = False,
+        alternatives: int = 1,
     ) -> Dict[str, Any]:
         if not self._loaded:
             self.load(custom_max_walk_dist=custom_max_walk_dist)
@@ -327,46 +331,140 @@ class RaptorEngine:
             max_rounds = 3
 
         algo = dijkstra_algo if use_dijkstra else raptor_algo
-        result, path = algo(
-            stops=search_stops,
-            routes=self.routes,
-            transfers=search_transfers,
-            source_id=VIRTUAL_START,
-            target_id=VIRTUAL_END,
-            departure_time=departure_minutes,
-            max_rounds=max_rounds,
-            debug=debug,
-        )
+        prepared = None if use_dijkstra else prepare_network(search_stops, self.routes, search_transfers)
 
-        earliest_arrival = result.get(VIRTUAL_END, INF)
-        path = path or []
-        if earliest_arrival == INF:
-            path = []
+        def run(banned: FrozenSet[str] = frozenset(), latest_arrival: int = INF):
+            kwargs: Dict[str, Any] = dict(
+                stops=search_stops,
+                routes=self.routes,
+                transfers=search_transfers,
+                source_id=VIRTUAL_START,
+                target_id=VIRTUAL_END,
+                departure_time=departure_minutes,
+                max_rounds=max_rounds,
+                debug=debug,
+            )
+            if prepared is not None:
+                kwargs.update(prepared=prepared, banned_routes=set(banned), latest_arrival=latest_arrival)
+            result, path = algo(**kwargs)
+            arrival = result.get(VIRTUAL_END, INF)
+            return result, ([] if arrival == INF else (path or []))
 
-        path_objs = reconstruct_path_objs(
-            path=path,
-            stops_dict=search_stops,
-            routes_dict=self.routes,
-            transfers_dict=search_transfer_map,
-        )
+        def package(result: Dict[str, int], path: List[Dict[str, Any]]) -> Dict[str, Any]:
+            earliest_arrival = result.get(VIRTUAL_END, INF)
+            path_objs = reconstruct_path_objs(
+                path=path,
+                stops_dict=search_stops,
+                routes_dict=self.routes,
+                transfers_dict=search_transfer_map,
+            )
+            rides = [step for step in path if step.get("mode") == "trip"]
 
-        rides = [step for step in path if step.get("mode") == "trip"]
+            def used_stop(stop_id, lat, lon):
+                if stop_id is None:
+                    return None
+                st = self.stops[stop_id]
+                return {"id": stop_id, "distance_m": hf.haversine(lat, lon, st.lat, st.lon)}
 
-        def used_stop(stop_id, lat, lon):
-            if stop_id is None:
-                return None
-            st = self.stops[stop_id]
-            return {"id": stop_id, "distance_m": hf.haversine(lat, lon, st.lat, st.lon)}
+            return {
+                "earliest_arrival": earliest_arrival if earliest_arrival != INF else None,
+                "source_stop": used_stop(rides[0]["from_stop_id"] if rides else None, source_lat, source_lon),
+                "target_stop": used_stop(rides[-1]["stop_id"] if rides else None, target_lat, target_lon),
+                "result": {k: v for k, v in result.items() if k not in (VIRTUAL_START, VIRTUAL_END)},
+                "path": path,
+                "path_objs": _path_objs_to_json_safe(path_objs),
+                "area_radius_m": AREA_RADIUS_M,
+            }
 
-        return {
-            "earliest_arrival": earliest_arrival if earliest_arrival != INF else None,
-            "source_stop": used_stop(rides[0]["from_stop_id"] if rides else None, source_lat, source_lon),
-            "target_stop": used_stop(rides[-1]["stop_id"] if rides else None, target_lat, target_lon),
-            "result": {k: v for k, v in result.items() if k not in (VIRTUAL_START, VIRTUAL_END)},
-            "path": path,
-            "path_objs": _path_objs_to_json_safe(path_objs),
-            "area_radius_m": AREA_RADIUS_M,
-        }
+        result, path = run()
+        out = package(result, path)
+
+        if alternatives > 1 and not use_dijkstra and path:
+            found = self._alternatives(run, (result, path), departure_minutes, alternatives)
+            out["journeys"] = [
+                {**package(r, p), **meta} for r, p, meta in found
+            ]
+        return out
+
+    def _alternatives(self, run, best, departure_minutes: int, count: int, max_runs: int = 14, budget_s: float = 6.0):
+        start = time.monotonic()
+        result0, path0 = best
+        arrival0 = result0[VIRTUAL_END]
+        slack = max(30, 0.5 * (arrival0 - departure_minutes))
+
+        def signature(path):
+            rides = [f"{s['from_stop_id']}>{s['stop_id']}" for s in path if s.get("mode") == "trip"]
+            return "|".join(rides) or "walk"
+
+        found = {signature(path0): (arrival0, result0, path0)}
+        tried = {frozenset()}
+        queue: List[Tuple[int, int, FrozenSet[str], List[Dict[str, Any]]]] = []
+        tick = 0
+        heapq.heappush(queue, (arrival0, tick, frozenset(), path0))
+        runs = 0
+        while queue and runs < max_runs and time.monotonic() - start < budget_s:
+            _, _, banned, path = heapq.heappop(queue)
+            for step in path:
+                if step.get("mode") != "trip":
+                    continue
+                ban = banned | {step["route_id"]}
+                if ban in tried:
+                    continue
+                tried.add(ban)
+                runs += 1
+                result, alt = run(ban, arrival0 + slack)
+                if not alt:
+                    continue
+                arrival = result[VIRTUAL_END]
+                sig = signature(alt)
+                if sig in found or arrival > arrival0 + slack:
+                    continue
+                found[sig] = (arrival, result, alt)
+                tick += 1
+                heapq.heappush(queue, (arrival, tick, ban, alt))
+                if runs >= max_runs:
+                    break
+
+        def stats(path):
+            rides = [s for s in path if s.get("mode") == "trip"]
+            walking = sum(s.get("transfer_time") or 0 for s in path if s.get("mode") == "transfer")
+            return max(len(rides) - 1, 0), walking
+
+        ranked = []
+        for sig, (arrival, result, path) in found.items():
+            transfers, walking = stats(path)
+            ranked.append((arrival, transfers, walking, sig, result, path))
+        ranked.sort(key=lambda r: (r[0], r[1], r[2], r[3]))
+        ranked = ranked[:count]
+
+        fewest = min(r[1] for r in ranked)
+        least = min(r[2] for r in ranked)
+        out = []
+        for i, (arrival, transfers, walking, sig, result, path) in enumerate(ranked):
+            labels = []
+            if i == 0:
+                labels.append("Fastest")
+            if len(ranked) > 1 and transfers == fewest and fewest < max(r[1] for r in ranked) and not any(
+                "Fewest transfers" in o[2]["labels"] for o in out
+            ):
+                labels.append("Fewest transfers")
+            if len(ranked) > 1 and walking == least and least < max(r[2] for r in ranked) and not any(
+                "Least walking" in o[2]["labels"] for o in out
+            ):
+                labels.append("Least walking")
+            out.append(
+                (
+                    result,
+                    path,
+                    {
+                        "rank": i,
+                        "signature": sig,
+                        "summary": {"duration": arrival - departure_minutes, "transfers": transfers, "walking": walking},
+                        "labels": labels,
+                    },
+                )
+            )
+        return out
 
 
 # Singleton with lazy load (pre-warmed in AppConfig.ready)
