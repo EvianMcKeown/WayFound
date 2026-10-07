@@ -1,4 +1,5 @@
 venv/
+.venv/
 env/
 __pycache__/
 settings.json
@@ -9,3 +10,9 @@ settings.json
 # raw operator files (not redistributable)
 data/raw/
 data/gtfs/non_monotone_trips.txt
+
+# machine-to-machine transfer archive
+PTJP-rework-transfer.zip
+
+# local databases (created with manage.py migrate; they hold accounts and password hashes)
+*.sqlite3
