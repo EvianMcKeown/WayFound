@@ -3,7 +3,8 @@ import { MODE_STYLE, hasApproximate } from "../lib/journey";
 import { Button, Panel, TextLink } from "./ui";
 import ModeBadge from "./ModeBadge";
 import RouteOptions, { CompareToggle } from "./RouteOptions";
-import { BookmarkIcon } from "./icons";
+import { BanIcon, BookmarkIcon } from "./icons";
+import { lineName } from "../lib/transport";
 import { formatDuration, minsToClock, minsToDayClock } from "../lib/time";
 
 function Stat({ label, value }) {
@@ -35,7 +36,7 @@ function Place({ name, approx }) {
     );
 }
 
-function LegRow({ leg, last, index = 0 }) {
+function LegRow({ leg, last, index = 0, onAvoid }) {
     const style = MODE_STYLE[leg.kind];
     const title = leg.kind === "walk" ? `Walk ${leg.minutes} min` : `${style.label} ${leg.routeName}`;
     const detail =
@@ -62,6 +63,18 @@ function LegRow({ leg, last, index = 0 }) {
                 <p className="text-xs text-mist-700" title={detail}>
                     <Place name={leg.fromName} approx={leg.fromApprox} /> → <Place name={leg.toName} approx={leg.toApprox} />
                     {leg.kind !== "walk" && leg.stops != null ? ` · ${leg.stops} stops` : ""}
+                    {leg.kind !== "walk" && leg.line && onAvoid && (
+                        <button
+                            type="button"
+                            onClick={() => onAvoid(leg.line)}
+                            title={`Plan again without ${lineName(leg.line)}`}
+                            aria-label={`Avoid ${lineName(leg.line)}`}
+                            className="group ml-2 inline-flex items-center gap-1 rounded py-1 text-xs font-medium text-mist-600 underline-offset-2 hover:text-red-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
+                        >
+                            <BanIcon className="h-3.5 w-3.5" />
+                            Avoid
+                        </button>
+                    )}
                 </p>
             </div>
             <span className="shrink-0 text-xs tabular-nums text-mist-600">{minsToClock(leg.arrival)}</span>
@@ -89,7 +102,15 @@ export function TripHeadline({ journey }) {
         <div>
             <div className="flex items-center justify-between gap-2">
                 <p className="text-3xl font-bold tracking-tight text-mist-900">{formatDuration(summary.duration)}</p>
-                <span className="rounded-full bg-mist-100 px-2 py-0.5 text-xs font-medium text-mist-700">{algorithm}</span>
+                <span className="flex items-center gap-1.5">
+                    {journey.avoiding > 0 && (
+                        <span className="flex items-center gap-1 rounded-full bg-mist-100 px-2 py-0.5 text-xs font-medium text-mist-700" title={journey.avoidingNames}>
+                            <BanIcon className="h-3 w-3 text-red-700" />
+                            Avoiding {journey.avoiding}
+                        </span>
+                    )}
+                    <span className="rounded-full bg-mist-100 px-2 py-0.5 text-xs font-medium text-mist-700">{algorithm}</span>
+                </span>
             </div>
             <p className="text-sm text-mist-700">
                 {minsToClock(departure)} → {minsToClock(arrival)} · arrive {minsToDayClock(arrival)}
@@ -126,13 +147,13 @@ export function TripStats({ journey }) {
     );
 }
 
-export function TripLegs({ journey }) {
+export function TripLegs({ journey, onAvoid }) {
     const { legs } = journey;
     return (
         <>
             <ol>
                 {legs.map((leg, i) => (
-                    <LegRow key={i} leg={leg} last={i === legs.length - 1} index={i} />
+                    <LegRow key={i} leg={leg} last={i === legs.length - 1} index={i} onAvoid={onAvoid} />
                 ))}
             </ol>
             {hasApproximate(legs) && (
@@ -172,11 +193,28 @@ export function TripReport({ journey }) {
     );
 }
 
-export function NoRouteCard({ journey, className = "" }) {
+export function NoRouteCard({ journey, className = "", onAllow }) {
+    const blocked = journey.blockedBy ?? [];
     return (
         <div className={`rounded-2xl border border-amber-200 bg-amber-50/85 p-4 text-sm text-amber-800 shadow-lg backdrop-blur-md ${className}`}>
-            <p className="font-medium">No public transport route found</p>
-            <p className="mt-1 text-amber-800">Try a different departure time, or a start and destination closer to a stop.</p>
+            {blocked.length > 0 && onAllow ? (
+                <>
+                    <p className="font-medium">No route while avoiding {blocked.map((b) => b.label).join(", ")}</p>
+                    <p className="mt-1 text-amber-800">A route exists if you allow {blocked.length === 1 ? "it" : "them"} for this trip.</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        {blocked.map((b) => (
+                            <Button key={b.key ?? `mode-${b.mode}`} variant="secondary" size="sm" onClick={() => onAllow(b)}>
+                                Allow {b.label}
+                            </Button>
+                        ))}
+                    </div>
+                </>
+            ) : (
+                <>
+                    <p className="font-medium">No public transport route found</p>
+                    <p className="mt-1 text-amber-800">Try a different departure time, or a start and destination closer to a stop.</p>
+                </>
+            )}
             <p className="mt-2 text-xs">
                 Expected a route here?{" "}
                 <Link
@@ -201,14 +239,14 @@ export function TripCompare({ compare, className = "" }) {
     );
 }
 
-export default function JourneyResults({ journey, onSave, saving, saved, signedIn, compare }) {
-    if (journey.status === "none") return <NoRouteCard journey={journey} className="pointer-events-auto" />;
+export default function JourneyResults({ journey, onSave, saving, saved, signedIn, compare, onAvoid, onAllow }) {
+    if (journey.status === "none") return <NoRouteCard journey={journey} className="pointer-events-auto" onAllow={onAllow} />;
     return (
         <Panel as="section" tone="glass" aria-label="Journey result" className="pointer-events-auto flex flex-col gap-3 p-4">
             <TripHeadline journey={journey} />
             <TripCompare compare={compare} />
             <TripStats journey={journey} />
-            <TripLegs journey={journey} />
+            <TripLegs journey={journey} onAvoid={onAvoid} />
             <TripSave onSave={onSave} saving={saving} saved={saved} signedIn={signedIn} />
             <TripReport journey={journey} />
         </Panel>

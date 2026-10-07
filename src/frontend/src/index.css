@@ -115,6 +115,8 @@ body {
   .ico-locate-ring { opacity: 0; }
   [data-busy="true"] .ico-locate-ring { animation: ico-pulse 1400ms ease-out infinite; }
 
+  .ico-slash { stroke-dasharray: 16; animation: ico-draw var(--duration-slow) var(--ease-out-soft) both; }
+
   .ico-check { stroke-dasharray: 16; animation: ico-draw var(--duration-slow) var(--ease-out-soft) both; }
 
   .ico-bookmark[data-on="true"] { animation: ico-pop 300ms var(--ease-out-soft); }

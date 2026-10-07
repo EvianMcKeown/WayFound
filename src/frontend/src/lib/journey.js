@@ -56,6 +56,7 @@ export function buildLegs(pathObjs, origin, destination) {
                 toApprox: !!alightStop?.approximate,
                 along: step.stops_along ?? [],
                 routeName: step.route?.name || step.route_id,
+                line: step.line ?? null,
                 routeId: step.route_id,
                 tripId: step.trip_id,
                 stops: step.disembark_pos != null && step.board_pos != null

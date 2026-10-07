@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import Page from "../components/Page";
 import { apiFetch } from "../lib/api";
+import AvoidTransport from "../components/AvoidTransport";
 import { Alert, Button, Checkbox, Field, Panel } from "../components/ui";
+import { avoidFromPrefs, avoidToPrefs } from "../lib/transport";
 
 const PROFILE_FIELDS = [
     ["username", "Username", "text"],
@@ -37,6 +39,18 @@ function PreferencesCard() {
         }
     };
 
+    const setAvoid = async (next) => {
+        const previous = prefs;
+        setPrefs({ ...prefs, excluded_modes: next.modes, excluded_lines: next.lines.map((l) => l.key), excluded_lines_detail: next.lines });
+        try {
+            setPrefs(await apiFetch("/api/preferences/", { method: "PATCH", auth: true, body: avoidToPrefs(next) }));
+            setMsg({ text: "Preferences saved.", error: false });
+        } catch (err) {
+            setPrefs(previous);
+            setMsg({ text: err.message || "Could not save your preferences.", error: true });
+        }
+    };
+
     return (
         <Panel as="section" aria-labelledby="prefs-heading" className="flex flex-col gap-3 p-5">
             <div>
@@ -56,6 +70,13 @@ function PreferencesCard() {
                             onChange={(e) => toggle(key, e.target.checked)}
                         />
                     ))}
+                    <div className="flex flex-col gap-2 border-t border-mist-200 pt-3">
+                        <h3 className="text-sm font-semibold text-mist-700">Transport I avoid</h3>
+                        <p className="text-xs text-mist-600">
+                            The planner leaves these out unless you allow them for a search. Switch an operator off, or search for a single line.
+                        </p>
+                        <AvoidTransport avoid={avoidFromPrefs(prefs)} onChange={setAvoid} />
+                    </div>
                 </div>
             )}
         </Panel>

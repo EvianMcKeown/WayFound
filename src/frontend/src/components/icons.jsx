@@ -64,3 +64,10 @@ export const CheckIcon = ({ className = "h-4 w-4" }) => (
         <path className="ico-check" d="M4.5 10.5l3.5 3.5 7.5-8" />
     </svg>
 );
+
+export const BanIcon = ({ className = "h-4 w-4" }) => (
+    <svg {...base} className={className}>
+        <circle cx="10" cy="10" r="7.5" />
+        <path className="ico-slash" d="M4.7 4.7l10.6 10.6" />
+    </svg>
+);

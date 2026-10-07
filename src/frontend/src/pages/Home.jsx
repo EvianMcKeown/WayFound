@@ -4,12 +4,14 @@ import AppShell, { HEADER_HEIGHT_PX } from "../components/AppShell";
 import BottomSheet from "../components/BottomSheet";
 import JourneyResults, { NoRouteCard, TripHeadline, TripLegs, TripModes, TripReport, TripSave, TripStats } from "../components/JourneyResults";
 import MapView from "../components/MapView";
+import AvoidTransport, { AvoidDefaults } from "../components/AvoidTransport";
 import RouteOptions, { CompareToggle } from "../components/RouteOptions";
 import PlaceSearch from "../components/PlaceSearch";
 import { apiFetch } from "../lib/api";
-import { useSession } from "../lib/auth";
+import { getSession, useSession } from "../lib/auth";
 import { buildLegs, buildOption, summarise } from "../lib/journey";
 import { readPlannerLink } from "../lib/plannerLink";
+import { NO_AVOID, avoidCount, avoidFromPrefs, avoidNames, avoidToPlan, avoidToPrefs, lineName, sameAvoid, withLine, withMode, withoutLine } from "../lib/transport";
 import { DAYS, nowAsPlannerInput } from "../lib/time";
 import { Alert, Button, Checkbox, Field, Panel, Segmented } from "../components/ui";
 import { ChevronIcon, CloseIcon, EditIcon, LocateIcon, SearchIcon, SwapIcon } from "../components/icons";
@@ -85,12 +87,22 @@ function SearchForm({ title, onClose, origin, destination, setOrigin, setDestina
             <details className="group">
                 <summary className="flex cursor-pointer list-none items-center gap-1.5 py-1 text-sm font-medium text-mist-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 [&::-webkit-details-marker]:hidden">
                     Options
+                    {avoidCount(options.avoid) > 0 && (
+                        <span className="rounded-full bg-mist-100 px-2 py-0.5 text-xs font-medium text-mist-700">{avoidCount(options.avoid)} avoided</span>
+                    )}
                     <ChevronIcon className="h-4 w-4 text-mist-600 group-open:rotate-180" />
                 </summary>
                 <div className="mt-3 flex flex-col gap-2 text-sm text-mist-700">
                     <Checkbox label="Minimise walking" checked={options.minimizeWalking} onChange={options.onWalking} />
                     <Checkbox label="Fewer transfers" checked={options.minimizeStops} onChange={options.onStops} />
                     <Segmented legend="Algorithm" className="mt-1" options={ALGORITHMS} value={options.useDijkstra} onChange={options.setUseDijkstra} />
+                    <div className="mt-1 flex flex-col gap-2 border-t border-mist-200 pt-3">
+                        <span className="text-sm font-medium text-mist-700">Transport</span>
+                        <AvoidTransport avoid={options.avoid} onChange={options.setAvoid} />
+                        {options.signedIn && options.avoidDiffers && (
+                            <AvoidDefaults onSave={options.saveAvoidDefaults} onReset={options.resetAvoid} saving={options.savingAvoid} />
+                        )}
+                    </div>
                 </div>
             </details>
 
@@ -127,6 +139,10 @@ export default function Home() {
     const [minimizeWalking, setMinimizeWalking] = useState(false);
     const [minimizeStops, setMinimizeStops] = useState(false);
     const [useDijkstra, setUseDijkstra] = useState(false);
+    const [avoid, setAvoidState] = useState(NO_AVOID);
+    const [savedAvoid, setSavedAvoid] = useState(NO_AVOID);
+    const [savingAvoid, setSavingAvoid] = useState(false);
+    const [prefsReady, setPrefsReady] = useState(() => !getSession());
     const session = useSession();
     const optionsTouched = useRef(false);
 
@@ -163,7 +179,7 @@ export default function Home() {
         [compareOpen, alts, activeIndex]
     );
 
-    const plan = async (from, to, { alt = null } = {}) => {
+    const plan = async (from, to, { alt = null, avoidNow = avoid } = {}) => {
         planCtrl.current?.abort();
         altCtrl.current?.abort();
         const ctrl = new AbortController();
@@ -180,6 +196,7 @@ export default function Home() {
             minimize_walking: minimizeWalking,
             minimize_stops: minimizeStops,
             use_dijkstra: useDijkstra,
+            ...avoidToPlan(avoidNow),
         };
 
         const body = {
@@ -193,6 +210,7 @@ export default function Home() {
             minimize_walking: minimizeWalking,
             minimize_stops: minimizeStops,
             use_dijkstra: useDijkstra,
+            ...avoidToPlan(avoidNow),
         };
         lastPlan.current = { from, to, departure, body };
         setCompareOpen(false);
@@ -213,9 +231,11 @@ export default function Home() {
             });
             const pathObjs = data.path_objs || [];
             if (data.earliest_arrival == null || pathObjs.length === 0) {
-                setJourney({ status: "none", request });
+                setJourney({ status: "none", request, blockedBy: data.blocked_by_exclusions ? data.blocked_by : null });
                 return;
             }
+            const unknown = new Set(data.exclusions?.unknown_lines ?? []);
+            const applied = { modes: avoidNow.modes, lines: avoidNow.lines.filter((l) => !unknown.has(l.key)) };
             const built = buildLegs(pathObjs, from, to);
             setSavedId(null);
             setJourney({
@@ -226,6 +246,8 @@ export default function Home() {
                 summary: summarise(built, departure, data.earliest_arrival),
                 algorithm: data.algorithm_used,
                 areaRadius: data.area_radius_m,
+                avoiding: avoidCount(applied),
+                avoidingNames: avoidNames(applied).join(", "),
                 request,
             });
             if (alt && data.journeys) {
@@ -251,6 +273,45 @@ export default function Home() {
             return;
         }
         plan(origin, destination);
+    };
+
+    const setAvoid = (next) => {
+        optionsTouched.current = true;
+        setAvoidState(next);
+    };
+    const avoidDiffers = Boolean(session) && !sameAvoid(avoid, savedAvoid);
+    const saveAvoidDefaults = async () => {
+        setSavingAvoid(true);
+        try {
+            const p = await apiFetch("/api/preferences/", { method: "PATCH", auth: true, body: avoidToPrefs(avoid) });
+            const saved = avoidFromPrefs(p);
+            setSavedAvoid(saved);
+            setAvoidState(saved);
+            setMessage({ text: "Saved as your defaults.", error: false });
+        } catch (err) {
+            setMessage({ text: err.message || "Could not save your defaults.", error: true });
+        } finally {
+            setSavingAvoid(false);
+        }
+    };
+    const resetAvoid = () => setAvoidState(savedAvoid);
+
+    const replanWith = (next, notice) => {
+        const from = journey?.request?.origin ?? origin;
+        const to = journey?.request?.destination ?? destination;
+        if (!from || !to) return;
+        optionsTouched.current = true;
+        setAvoidState(next);
+        plan(from, to, { avoidNow: next });
+        if (notice) setMessage(notice);
+    };
+    const avoidLine = (line) => {
+        const previous = avoid;
+        replanWith(withLine(avoid, line), { text: `Avoiding ${lineName(line)}.`, error: false, undo: () => replanWith(previous) });
+    };
+    const allow = (item) => {
+        const next = item.type === "mode" ? withMode(avoid, item.mode, false) : withoutLine(avoid, item.key);
+        replanWith(next, { text: `Allowing ${item.label}.`, error: false });
     };
 
     const loadAlternatives = async () => {
@@ -309,11 +370,18 @@ export default function Home() {
         let cancelled = false;
         apiFetch("/api/preferences/", { auth: true })
             .then((p) => {
-                if (cancelled || optionsTouched.current) return;
+                if (cancelled) return;
+                const saved = avoidFromPrefs(p);
+                setSavedAvoid(saved);
+                if (optionsTouched.current) return;
                 setMinimizeWalking(Boolean(p.minimize_walking));
                 setMinimizeStops(Boolean(p.minimize_stops));
+                setAvoidState(saved);
             })
-            .catch(() => {});
+            .catch(() => {})
+            .finally(() => {
+                if (!cancelled) setPrefsReady(true);
+            });
         return () => {
             cancelled = true;
         };
@@ -354,6 +422,7 @@ export default function Home() {
     };
 
     useEffect(() => {
+        if (!prefsReady) return;
         const link = readPlannerLink(params);
         if (!link) return;
         let cancelled = false;
@@ -381,7 +450,7 @@ export default function Home() {
             cancelled = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [prefsReady]);
 
     useEffect(
         () => () => {
@@ -400,6 +469,13 @@ export default function Home() {
             setUseDijkstra,
             onWalking: setOption(setMinimizeWalking),
             onStops: setOption(setMinimizeStops),
+            avoid,
+            setAvoid,
+            signedIn: Boolean(session),
+            avoidDiffers,
+            saveAvoidDefaults,
+            resetAvoid,
+            savingAvoid,
         },
     };
     const supportsCompare = journey?.status === "ok" && !journey.request.use_dijkstra;
@@ -422,6 +498,11 @@ export default function Home() {
     const alert = message && (
         <Alert tone={message.error ? "error" : "success"} role="status" className="pointer-events-auto">
             {message.text}
+            {message.undo && (
+                <button type="button" onClick={message.undo} className="ml-2 font-semibold underline underline-offset-2 hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40">
+                    Undo
+                </button>
+            )}
         </Alert>
     );
 
@@ -435,7 +516,7 @@ export default function Home() {
                         </Panel>
                         {alert}
                         {journey && (
-                            <JourneyResults journey={active} onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} compare={compare(compareOpen, toggleDesktop)} />
+                            <JourneyResults journey={active} onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} compare={compare(compareOpen, toggleDesktop)} onAvoid={avoidLine} onAllow={allow} />
                         )}
                     </aside>
                     <div className="absolute inset-0">
@@ -525,7 +606,7 @@ export default function Home() {
         peek = (
             <div className="flex flex-col gap-3 px-4 pb-6">
                 {alert}
-                <NoRouteCard journey={journey} />
+                <NoRouteCard journey={journey} onAllow={allow} />
             </div>
         );
     } else {
@@ -550,7 +631,7 @@ export default function Home() {
             <div className="flex flex-col gap-3 px-4 pb-6">
                 {compareOpen && supportsCompare && <RouteOptions {...compare(true, toggleMobile)} onSelect={chooseOnSheet} />}
                 <TripStats journey={active} />
-                <TripLegs journey={active} />
+                <TripLegs journey={active} onAvoid={avoidLine} />
                 <TripReport journey={active} />
             </div>
         );

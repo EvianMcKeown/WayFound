@@ -23,6 +23,7 @@ Unlike traditional shortest-path algorithms (e.g., Dijkstra's), RAPTOR works in 
 ### Features
 - Journey planning from any address or place to any other, with the RAPTOR algorithm (or Dijkstra, under Options for comparison).  
 - Walking to and from stops, transfers, and route preferences (minimise walking, fewer transfers).  
+- Avoid transport: switch an operator (MyCiTi, Golden Arrow, Metrorail) off, or search for a single line (a MyCiTi number, a Metrorail line, a Golden Arrow pair of places) and the planner leaves it out. "Avoid" on a ride in the result does the same in one tap, with Undo. If nothing is found because of what is avoided, the result says which one is in the way and offers to allow it. Signed-in riders can keep their choices as defaults.  
 - Compare routes: the best route is the default, and "Compare routes" shows up to four more, ranked by arrival time and labelled "Fastest", "Fewest transfers" and "Least walking". Choose any of them as the route in use; a saved route remembers the choice.  
 - Legs are shown per operator, each in its own colour (MyCiTi, Golden Arrow, Metrorail) with a walk, bus or train badge.  
 - Responsive layout: floating panels over the map on desktop, a map-first bottom sheet on mobile.  
@@ -37,6 +38,10 @@ Unlike traditional shortest-path algorithms (e.g., Dijkstra's), RAPTOR works in 
 | Desktop | Phone |
 |---|---|
 | ![Desktop planner with the route options open: the fastest route in use and a slower one with fewer minutes of walking](docs/screenshots/planner-compare.png) | ![Phone planner with the sheet expanded to the route options](docs/screenshots/planner-mobile-compare.png) |
+
+**Avoiding transport.** Under Options, "Transport" has a switch per operator and a search for single lines. Choices are for that search; "Make these my defaults" (signed in) keeps them in your profile, and Settings has the same controls under "Transport I avoid". Walking is never avoided, so a trip can always fall back to it.
+
+![The planner's Options panel on a desktop with Metrorail switched off, and a result that does not use trains](docs/screenshots/planner-avoid.png)
 
 ---
 

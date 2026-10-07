@@ -77,6 +77,36 @@ const openCompare = async (page) => {
     await sleep(600);
 };
 
+const FAKE_SESSION = `(() => {
+    const b64 = (o) => btoa(JSON.stringify(o)).split("=").join("").split("+").join("-").split("/").join("_");
+    const token = b64({ alg: "none", typ: "JWT" }) + "." + b64({ username: "Alex", token_type: "access", exp: 1893456000 }) + ".demo";
+    localStorage.setItem("access", token); localStorage.setItem("refresh", token);
+})()`;
+
+const AVOIDING_PROFILE = {
+    minimize_walking: false,
+    minimize_stops: false,
+    excluded_modes: [0],
+    excluded_lines: ["mr:central", "gone:x"],
+    excluded_lines_detail: [
+        { key: "mr:central", label: "Central", mode: 2, operator: "Metrorail", directions: 22 },
+        { key: "gone:x", label: "gone:x", mode: null, operator: null, directions: 0, unavailable: true },
+    ],
+};
+
+const openOptions = async (page) => {
+    await page.eval(`if (!document.querySelector('#time, #time-sheet')) document.querySelector('button[aria-label="Change journey"]')?.click()`);
+    await page.waitFor("!!document.querySelector('#time, #time-sheet')", "search form");
+    await page.eval(`(() => { const d = document.querySelector('details'); if (d && !d.open) d.querySelector('summary').click(); })()`);
+    await page.waitFor("!!document.querySelector('[role=switch]')", "operator switches");
+};
+const submitForm = async (page) => {
+    await page.eval(`document.querySelector('form button[type=submit]').click()`);
+    await sleep(400);
+};
+const planned = (page, label = "result") =>
+    page.waitFor(`!!${RESULT}?.innerText.includes('→') || document.body.innerText.includes('No route while avoiding')`, label);
+
 const mapIdle = (page) =>
     page.waitFor("window.__map && window.__map.loaded() && window.__map.areTilesLoaded() && !window.__map.isMoving()", "map idle");
 
@@ -148,6 +178,124 @@ const SHOTS = [
             if (!shown.includes(second)) throw new Error("headline does not show the chosen option's duration " + second);
         },
         ready: mapIdle,
+    },
+    {
+        name: "planner-avoid-operator",
+        path: MANY_ROUTES,
+        setup: async (p) => {
+            await replan(1, "08:00")(p);
+            await p.waitFor(`${RESULT}?.innerText.includes("08:00 →")`, "first result");
+            await p.waitFor(`${RESULT}?.innerText.includes("Train ")`, "a train leg to avoid");
+            await openOptions(p);
+            await p.eval(`document.querySelector('[role=switch][aria-label="Use Metrorail"]').click()`);
+            const on = await p.eval(`document.querySelector('[role=switch][aria-label="Use Metrorail"]').getAttribute('aria-checked')`);
+            if (on !== "false") throw new Error("the Metrorail switch did not turn off");
+            await submitForm(p);
+            await p.waitFor(`!!${RESULT}?.innerText.includes('Avoiding 1') && !${RESULT}.innerText.includes('Train ')`, "a result without trains");
+            await sleep(500);
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "planner-avoid-line",
+        path: MANY_ROUTES,
+        setup: async (p) => {
+            await replan(1, "08:00")(p);
+            await p.waitFor(`${RESULT}?.innerText.includes("08:00 →")`, "first result");
+            await openOptions(p);
+            const box = `document.querySelector('input[placeholder^="113, Southern"]')`;
+            await p.eval(`(${SET_FIELD})('input[placeholder^="113, Southern"]', "southern")`);
+            await p.waitFor("!!document.querySelector('[role=listbox] [role=option]')", "line suggestions");
+            const first = await p.eval(`document.querySelector('[role=listbox] [role=option]').textContent`);
+            if (!/Metrorail Southern/.test(first)) throw new Error("expected Metrorail Southern first, got " + first);
+            await p.eval(`document.querySelector('[role=listbox] [role=option]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))`);
+            await p.waitFor(`!!document.querySelector('ul[aria-label="Lines avoided"]')?.textContent.includes('Metrorail Southern')`, "the line chip");
+            await submitForm(p);
+            await p.waitFor(`!!${RESULT}?.innerText.includes('Avoiding 1')`, "a result that avoids the line");
+            const text = await p.eval(`${RESULT}.innerText`);
+            if (/Train Southern/.test(text)) throw new Error("the result still uses the Southern line");
+            await sleep(500);
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "planner-avoid-from-leg",
+        path: MANY_ROUTES,
+        setup: async (p) => {
+            await replan(1, "08:00")(p);
+            await p.waitFor(`${RESULT}?.innerText.includes("08:00 →")`, "first result");
+            if (await p.eval(`!!document.querySelector('button[aria-label="Change journey"]')`)) {
+                await p.eval(`${clickText("button", "Steps")}`);
+                await sleep(600);
+            }
+            await p.eval(`document.querySelector('button[aria-label^="Avoid "]').click()`);
+            await p.waitFor(`document.body.innerText.includes('Avoiding ') && document.body.innerText.includes('Undo')`, "the notice with Undo");
+            await planned(p);
+            await sleep(500);
+            await p.eval(`${clickText("button", "Undo")}`);
+            await p.waitFor(`!document.body.innerText.includes('Avoiding 1')`, "Undo to put the line back");
+            await planned(p);
+            await sleep(500);
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "planner-avoid-noroute",
+        path: MANY_ROUTES,
+        setup: async (p) => {
+            await replan(1, "08:00")(p);
+            await p.waitFor(`${RESULT}?.innerText.includes("08:00 →")`, "first result");
+            await openOptions(p);
+            await p.eval(`document.querySelector('[role=switch][aria-label="Use Golden Arrow"]').click()`);
+            await submitForm(p);
+            await p.waitFor("document.body.innerText.includes('No route while avoiding Golden Arrow')", "the no-route card");
+            await sleep(400);
+            await p.eval(`${clickText("button", "Allow Golden Arrow")}`);
+            await p.waitFor(`!!${RESULT}?.innerText.includes('08:00 →') && !document.body.innerText.includes('No route while avoiding')`, "the route back once allowed");
+            await sleep(500);
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "planner-avoid-defaults",
+        path: "/",
+        stub: { "*/api/preferences/*": AVOIDING_PROFILE },
+        setup: async (p) => {
+            await p.waitFor("!!window.__map", "planner");
+            await p.eval(`${FAKE_SESSION}; location.assign(${JSON.stringify(MANY_ROUTES)})`);
+            await sleep(1500);
+            await p.waitFor(`!!${RESULT}?.innerText.includes('Avoiding 2')`, "a result that avoids the profile's defaults (a line the timetable lost is ignored)");
+            await openOptions(p);
+            const myciti = await p.eval(`document.querySelector('[role=switch][aria-label="Use MyCiTi"]').getAttribute('aria-checked')`);
+            if (myciti !== "false") throw new Error("MyCiTi should start switched off from the profile");
+            const lost = await p.eval(`document.querySelector('ul[aria-label="Lines avoided"]').textContent.includes('not in the timetable now')`);
+            if (!lost) throw new Error("a line the timetable no longer has should still be listed, marked as unavailable");
+            const shows = () => p.eval(`[...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Make these my defaults')`);
+            if (await shows()) throw new Error("Make these my defaults should not show while the search matches the profile");
+            await p.eval(`document.querySelector('[role=switch][aria-label="Use Golden Arrow"]').click()`);
+            await sleep(300);
+            if (!(await shows())) throw new Error("Make these my defaults should show once the search differs from the profile");
+            await p.eval(`${clickText("button", "Reset to my defaults")}`);
+            await sleep(300);
+            if (await shows()) throw new Error("Reset to my defaults should put the profile's choices back");
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "settings-avoid",
+        path: "/",
+        stub: { "*/api/preferences/*": AVOIDING_PROFILE, "*/api/user/*": { username: "Alex", email: "alex@example.com", first_name: "Alex", last_name: "" } },
+        setup: async (p) => {
+            await p.waitFor("!!window.__map", "planner");
+            await p.eval(`${FAKE_SESSION}; location.assign('/settings')`);
+            await sleep(1500);
+            await p.waitFor("document.body.innerText.includes('Transport I avoid')", "the avoid section");
+            const myciti = await p.eval(`document.querySelector('[role=switch][aria-label="Use MyCiTi"]').getAttribute('aria-checked')`);
+            const mr = await p.eval(`document.querySelector('[role=switch][aria-label="Use Metrorail"]').getAttribute('aria-checked')`);
+            if (myciti !== "false" || mr !== "true") throw new Error("expected MyCiTi off and Metrorail on, got " + myciti + " / " + mr);
+            const chips = await p.eval(`document.querySelector('ul[aria-label="Lines avoided"]').textContent`);
+            if (!chips.includes("Metrorail Central")) throw new Error("expected the Central line chip, got " + chips);
+        },
     },
     {
         name: "planner-saved-alternative",
