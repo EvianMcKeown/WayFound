@@ -25,6 +25,7 @@ Unlike traditional shortest-path algorithms (e.g., Dijkstra's), RAPTOR works in 
 - Walking to and from stops, transfers, and route preferences (minimise walking, fewer transfers).  
 - Legs are shown per operator, each in its own colour (MyCiTi, Golden Arrow, Metrorail) with a walk, bus or train badge.  
 - Responsive layout: floating panels over the map on desktop, a map-first bottom sheet on mobile.  
+- Small, calm animations: icons that turn, pulse and morph, a route that fades in on the map, and legs that rise in one by one. They are switched off for anyone who prefers reduced motion.  
 - Accounts (JWT sign-in with token refresh), saved routes that can be renamed and re-planned, and saved journey preferences.  
 - Issue reports, attached to the journey or "no route" result they came from.  
 - Django REST API for planning, geocoding, accounts, saved routes, preferences and reports.  
