@@ -131,7 +131,9 @@ export default function storyboard(api) {
             await waitFor(`(stage.app().querySelector("aside")?.innerText ?? "").includes("Avoiding")`, "the trip without that line");
             await waitMap();
             await ev(`(() => { const a = stage.app().querySelector("aside"); a.scrollTo({ top: 0, behavior: "smooth" }); })()`);
-            await wait(2600);
+            await wait(900);
+            await caption("<b>Avoiding 1</b>: that line is left out");
+            await wait(2400);
             await caption(null);
             await home(1000);
         },

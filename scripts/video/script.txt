@@ -51,7 +51,12 @@ SCENE 2. DESKTOP: FROM TWO PLACES TO A SAVED TRIP
 
   CAPTION  "A line you dislike? Avoid it"
         - The pointer clicks Avoid beside a ride. The trip is planned again without that line, and the
-          headline shows an "Avoiding 1" tag. The pointer disappears and the camera pulls back out.
+          headline shows an "Avoiding 1" tag (and a notice with Undo). The pointer disappears.
+
+  CAPTION  "Avoiding 1: that line is left out"
+        - The panel scrolls back to the top so the "Avoiding 1" tag is in view, which is what the caption
+          explains: the number is how many operators or lines are left out of the search. The camera then
+          pulls back out.
 
 
 TRANSITION. A frozen frame of the laptop scene dissolves into the phone scene, with the camera easing in.
