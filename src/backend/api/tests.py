@@ -97,6 +97,13 @@ class SavedRouteTests(APITestCase):
         self.assertEqual(changed.data["route_signature"], "")
         self.assertEqual(SavedRoute.objects.count(), 1)
 
+    def test_choice_can_be_cleared_with_a_patch(self):
+        first = self.client.post("/api/saved-routes/", {**self.ROUTE, "route_signature": "a>b"}, format="json")
+        resp = self.client.patch(f"/api/saved-routes/{first.data['id']}/", {"route_signature": ""}, format="json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["route_signature"], "")
+        self.assertEqual(resp.data["start_location"], self.ROUTE["start_location"])
+
     def test_routes_without_a_choice_default_to_the_best(self):
         resp = self.client.post("/api/saved-routes/", self.ROUTE, format="json")
         self.assertEqual(resp.data["route_signature"], "")

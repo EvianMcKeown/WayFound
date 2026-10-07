@@ -3,10 +3,13 @@ import Page from "../components/Page";
 import { Alert, Button, Field, Panel } from "../components/ui";
 import { apiFetch } from "../lib/api";
 import { savedRouteLink } from "../lib/plannerLink";
+import { CheckIcon } from "../components/icons";
 
 const defaultName = (r) => `${r.start_location} → ${r.end_location}`;
 
-function RouteRow({ route, onRename, onDelete }) {
+const rideCount = (signature) => (signature === "walk" ? 0 : signature.split("|").length);
+
+function RouteRow({ route, onRename, onDelete, onUseFastest }) {
     const [editing, setEditing] = useState(false);
     const [name, setName] = useState(route.name);
     const [busy, setBusy] = useState(false);
@@ -49,13 +52,29 @@ function RouteRow({ route, onRename, onDelete }) {
                     {route.name && (
                         <p className="truncate text-xs text-mist-700">{defaultName(route)}</p>
                     )}
-                    <p className="mt-1 text-xs text-mist-600">Saved {new Date(route.created_at).toLocaleDateString()}</p>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-mist-600">
+                        <span>Saved {new Date(route.created_at).toLocaleDateString()}</span>
+                        {route.route_signature && (
+                            <span
+                                className="flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-800"
+                                title="Plan opens on the alternative route you chose, not the fastest one"
+                            >
+                                <CheckIcon className="h-3 w-3" />
+                                Chosen route · {rideCount(route.route_signature)} {rideCount(route.route_signature) === 1 ? "ride" : "rides"}
+                            </span>
+                        )}
+                    </p>
                 </div>
             )}
 
             {!editing && (
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2">
                     <Button to={savedRouteLink(route)} size="sm">Plan</Button>
+                    {route.route_signature && (
+                        <Button variant="secondary" size="sm" onClick={() => onUseFastest(route.id)} className="whitespace-nowrap">
+                            Use fastest
+                        </Button>
+                    )}
                     <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
                         Rename
                     </Button>
@@ -95,6 +114,16 @@ export default function SavedRoutes() {
         }
     };
 
+    const useFastest = async (id) => {
+        try {
+            const updated = await apiFetch(`/api/saved-routes/${id}/`, { method: "PATCH", auth: true, body: { route_signature: "" } });
+            setRoutes((rs) => rs.map((r) => (r.id === id ? updated : r)));
+            setError(null);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
     const remove = async (id) => {
         try {
             await apiFetch(`/api/saved-routes/${id}/`, { method: "DELETE", auth: true });
@@ -125,7 +154,7 @@ export default function SavedRoutes() {
 
             <ul className="flex flex-col gap-3">
                 {routes?.map((r) => (
-                    <RouteRow key={r.id} route={r} onRename={rename} onDelete={remove} />
+                    <RouteRow key={r.id} route={r} onRename={rename} onDelete={remove} onUseFastest={useFastest} />
                 ))}
             </ul>
         </Page>

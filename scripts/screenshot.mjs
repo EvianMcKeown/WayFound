@@ -324,6 +324,30 @@ const SHOTS = [
         },
     },
     { name: "savedroutes", path: "/savedroutes", auth: true, ready: (p) => p.waitFor("!document.body.innerText.includes('Loading…')", "routes") },
+    {
+        name: "savedroutes-alternative",
+        path: "/",
+        stub: {
+            "*/api/saved-routes/*": [
+                { id: 1, name: "To work", start_location: "Gugulethu", end_location: "V&A Waterfront", origin_lat: -33.978, origin_lon: 18.57, dest_lat: -33.9025, dest_lon: 18.4207, route_signature: "ga_GUGULETU>GABS004|mr_HARFIELD_ROAD>mr_133|mc_WOODSTOCK>mc_WATERFRONT", created_at: "2026-10-05T09:00:00Z" },
+                { id: 2, name: "", start_location: "Cape Town Station", end_location: "Claremont Station", origin_lat: -33.9221, origin_lon: 18.4257, dest_lat: -33.9806, dest_lon: 18.4653, route_signature: "", created_at: "2026-10-01T09:00:00Z" },
+            ],
+        },
+        setup: async (p) => {
+            await p.waitFor("!!window.__map", "planner");
+            await p.eval(`(() => {
+                const b64 = (o) => btoa(JSON.stringify(o)).split("=").join("").split("+").join("-").split("/").join("_");
+                const token = b64({ alg: "none", typ: "JWT" }) + "." + b64({ username: "Alex", token_type: "access", exp: 1893456000 }) + ".demo";
+                localStorage.setItem("access", token); localStorage.setItem("refresh", token);
+                location.assign("/savedroutes");
+            })()`);
+            await sleep(1500);
+            await p.waitFor("document.body.innerText.includes('To work')", "the stubbed routes");
+            const chips = await p.eval(`[...document.querySelectorAll('li')].filter((li) => li.innerText.includes('Chosen route · 3 rides')).length`);
+            const fastest = await p.eval(`[...document.querySelectorAll('button')].filter((b) => b.textContent.trim() === 'Use fastest').length`);
+            if (chips !== 1 || fastest !== 1) throw new Error("expected one chosen-route chip and one Use fastest button, got " + chips + " and " + fastest);
+        },
+    },
     { name: "settings", path: "/settings", auth: true, ready: (p) => p.waitFor("!document.body.innerText.includes('Loading…')", "settings") },
     {
         name: "account-menu",
