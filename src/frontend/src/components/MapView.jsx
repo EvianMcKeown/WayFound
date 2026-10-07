@@ -205,7 +205,7 @@ export default function MapView({
                 zoom: 11,
             });
             mapRef.current = map;
-            if (import.meta.env.DEV) {
+            if (import.meta.env.DEV || window.__WAYFOUND_CAPTURE__) {
                 window.__map = map;
                 window.__mapErrors = [];
                 map.on("error", (e) => window.__mapErrors.push(String(e.error?.message ?? e.error)));

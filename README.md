@@ -134,6 +134,18 @@ node scripts/screenshot.mjs --out shots --chrome "C:/Program Files (x86)/Microso
 ```
 Use a throwaway account created through the sign-up page for the signed-in shots. The `planner-wheel-up-down` shot also checks that the mobile sheet grows when scrolled and shrinks again, and fails if it does not.
 
+### Help video
+[![WayFound help video: plan a trip on desktop and phone](src/frontend/public/help-video-poster.jpg)](src/frontend/public/help-video.mp4)
+
+*A 65 second silent walkthrough with captions: plan a trip across three operators, save it, then do it again on a phone. Click the picture to play it.*
+
+The video on the Help page (`src/frontend/public/help-video.mp4`, with a poster and English captions) is rendered by script, so it can be re-shot after a design change. `scripts/video/record.mjs` builds the app, plays a storyboard in a browser with a smoothed pointer, camera zooms, captions and finger gestures, and renders it frame by frame at 60 fps (the browser's clock is paused between frames, so it is smooth however slow the machine is). It needs ffmpeg, a Chrome or Edge, Node 22+ and Django running on :8000.
+```bash
+node scripts/video/record.mjs --chrome "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" --out src/frontend/public
+node scripts/video/record.mjs --chrome <browser> --out video-test --fps 30 --only phone    # a quick preview of one scene
+```
+It renders on the graphics card (`--gpu nvidia` by default) and stops if the browser ends up on a different one, such as an integrated GPU; use `--gpu software` for the CPU renderer. A fixed clock (Tuesday 08:00) and fixed address suggestions keep every take identical.
+
 ---
 
 ## Project structure
@@ -145,7 +157,7 @@ Use a throwaway account created through the sign-up page for the signed-in shots
 | `src/frontend/` | React 19, Vite and Tailwind 4 web app |
 | `src/journey_planner/` | The earlier Django prototype, kept for reference |
 | `data/gtfs/` | The cleaned GTFS feed, plus the repair and rebuild scripts in `data/gtfs/scripts/` |
-| `scripts/` | Developer tools (`screenshot.mjs`) |
+| `scripts/` | Developer tools (`screenshot.mjs`, and `video/` for the help video) |
 | `docs/plans/` | Planning documents (palette, accounts, timetable rebuilds, crowdsourced routes, design system) |
 | `docs/screenshots/` | Images used in this README |
 

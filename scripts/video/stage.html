@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>WayFound stage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+<style>
+  :root { --ink: #1a1f1a; --brand: #108418; --mist: #516153; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #f8f9f8; font-family: "Inter", system-ui, sans-serif; cursor: none; }
+  #world { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(135deg, #effaf0 0%, #ffffff 45%, #dff5e0 100%); }
+
+  .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.55; }
+  #blob1 { width: 760px; height: 760px; left: -160px; top: -200px; background: #94dc99; animation: drift1 18s ease-in-out infinite alternate; }
+  #blob2 { width: 640px; height: 640px; right: -120px; bottom: -220px; background: #1bb625; opacity: 0.28; animation: drift2 22s ease-in-out infinite alternate; }
+  #blob3 { width: 520px; height: 520px; right: 220px; top: -240px; background: #00b0df; opacity: 0.16; animation: drift1 26s ease-in-out infinite alternate-reverse; }
+  @keyframes drift1 { to { transform: translate(140px, 90px) scale(1.12); } }
+  @keyframes drift2 { to { transform: translate(-160px, -70px) scale(1.1); } }
+
+  #cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+  .device { position: absolute; background: #0d120d; overflow: hidden; opacity: 0; scale: 0.97; transform-origin: 50% 50%;
+    transition: opacity var(--dev-ms, 600ms) ease-in-out, scale var(--dev-ms, 600ms) cubic-bezier(0.22, 1, 0.36, 1); }
+  .device.back { z-index: 2; }
+  .device[data-shown="true"] { opacity: 1; scale: 1; }
+  .device:not([data-shown="true"]) { pointer-events: none; }
+  .device.desktop { border-radius: 16px; box-shadow: 0 40px 100px rgba(16, 40, 18, 0.28), 0 8px 24px rgba(16, 40, 18, 0.18), 0 0 0 1px rgba(16, 40, 18, 0.12); }
+  .device.phone { border-radius: 56px; padding: 12px; background: #11151a; box-shadow: 0 40px 100px rgba(16, 40, 18, 0.35), 0 8px 24px rgba(16, 40, 18, 0.2), inset 0 0 0 2px #2a313a; }
+  .device iframe { display: block; border: 0; background: #fff; contain: paint; }
+  .device.desktop iframe { border-radius: 16px; clip-path: inset(0 round 16px); }
+  .device.phone iframe { border-radius: 44px; clip-path: inset(0 round 44px); }
+  .device.phone { isolation: isolate; }
+  .device.desktop { isolation: isolate; }
+  #ghost { position: absolute; inset: 0; width: 1920px; height: 1080px; z-index: 40; pointer-events: none; opacity: 0; }
+
+  #cursor { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; z-index: 5; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35)); opacity: 0; transition: opacity 260ms ease, scale 120ms ease-out; }
+  #cursor.press { scale: 0.86; }
+  #ripple { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 4; }
+  #ripple i { position: absolute; left: -30px; top: -30px; width: 60px; height: 60px; border-radius: 50%; background: rgba(16, 132, 24, 0.28); border: 2px solid rgba(16, 132, 24, 0.6); animation: ripple 520ms ease-out forwards; }
+  @keyframes ripple { from { transform: scale(0.2); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
+  #finger { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 6; opacity: 0; transition: opacity 160ms ease-out; }
+  #finger i { position: absolute; left: -34px; top: -34px; width: 68px; height: 68px; border-radius: 50%; background: rgba(255, 255, 255, 0.55); border: 2px solid rgba(255, 255, 255, 0.95); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); backdrop-filter: blur(2px); transition: scale 140ms ease-out; }
+  #finger.down i { scale: 0.82; background: rgba(255, 255, 255, 0.75); }
+
+  .badge { position: absolute; display: flex; align-items: center; gap: 10px; padding: 9px 18px 9px 12px; border-radius: 999px; background: #fff; z-index: 3;
+    box-shadow: 0 10px 28px rgba(16, 40, 18, 0.2), 0 0 0 1px rgba(16, 40, 18, 0.08); font: 600 20px/1 "Inter", system-ui, sans-serif; color: #1a1f1a; white-space: nowrap;
+    opacity: 0; translate: -14px -50%; transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1), translate 420ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .badge.on { opacity: 1; translate: 0 -50%; }
+  .badge i { width: 14px; height: 14px; border-radius: 50%; background: var(--c); flex: none; }
+
+  #caption { position: absolute; left: 50%; bottom: 46px; transform: translate(-50%, 18px); padding: 18px 34px; border-radius: 999px; background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(18px); box-shadow: 0 16px 40px rgba(16, 40, 18, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.7); font-size: 34px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); opacity: 0; transition: opacity 380ms cubic-bezier(0.22, 1, 0.36, 1), transform 380ms cubic-bezier(0.22, 1, 0.36, 1); white-space: nowrap; z-index: 20; }
+  #caption.on { opacity: 1; transform: translate(-50%, 0); }
+  #caption.side { left: 1230px; bottom: auto; top: 50%; width: 560px; white-space: normal; text-align: left; border-radius: 40px; padding: 30px 42px; font-size: 48px; line-height: 1.2; transform: translate(0, calc(-50% + 18px)); }
+  #caption.side.on { transform: translate(0, -50%); }
+  #caption b { color: var(--brand); font-weight: 700; }
+
+  #card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; background: linear-gradient(135deg, #effaf0 0%, #ffffff 50%, #dff5e0 100%); opacity: 0; pointer-events: none; transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1); z-index: 30; text-align: center; }
+  #card.on { opacity: 1; }
+  #card img { width: 150px; height: 150px; border-radius: 36px; background: #fff; box-shadow: 0 18px 50px rgba(16, 40, 18, 0.2), 0 0 0 1px #dff5e0; transform: translateY(14px) scale(0.94); transition: transform 800ms cubic-bezier(0.22, 1, 0.36, 1); }
+  #card.on img { transform: none; }
+  #card h1 { margin: 0; font-size: 104px; line-height: 1; letter-spacing: -0.035em; font-weight: 700; color: var(--ink); }
+  #card h1 .f { color: var(--brand); }
+  #card p { margin: 0; font-size: 38px; font-weight: 500; color: var(--mist); max-width: 1200px; }
+  #card h1, #card p { perspective: 900px; }
+  #card .w { display: inline-block; transform-origin: 50% 0; transform: rotateX(-90deg); opacity: 0; transition: transform 750ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i) * 85ms + var(--d)), opacity 350ms ease calc(var(--i) * 85ms + var(--d)); }
+  #card.on .w { transform: none; opacity: 1; }
+  #card.pre .w { transform: rotateX(-90deg); opacity: 0; transition: none; }
+
+  #fade { position: absolute; inset: 0; background: #f8f9f8; opacity: 0; pointer-events: none; z-index: 25; }
+</style>
+</head>
+<body>
+<div id="world">
+  <div class="blob" id="blob1"></div><div class="blob" id="blob2"></div><div class="blob" id="blob3"></div>
+  <div id="cam">
+    <div id="dev0" class="device desktop"><iframe id="app0" title="WayFound"></iframe></div>
+    <div id="dev1" class="device desktop"><iframe id="app1" title="WayFound"></iframe></div>
+    <div id="ripple"></div>
+    <svg id="cursor" viewBox="4 2 22 26" width="22" height="26"><path d="M4 2.5 L4 22.5 L9.2 17.6 L12.7 25.8 L16.2 24.3 L12.8 16.2 L19.8 15.9 Z" fill="#fff" stroke="#1a1f1a" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    <div id="finger"><i></i></div>
+  </div>
+  <img id="ghost" alt="" />
+  <div id="fade"></div>
+  <div id="caption"></div>
+  <div id="card"><img src="/logo.png" alt="" /><h1><b>Way</b><span>Found</span></h1><p></p></div>
+</div>
+<script>
+const W = 1920, H = 1080;
+const $ = (id) => document.getElementById(id);
+const cam = $("cam"), cursor = $("cursor"), ripple = $("ripple"), finger = $("finger");
+const flipWords = (text, first, d) => text.split(" ").map((w, k) => `<span class="w" style="--i:${first + k};--d:${d}ms">${w}</span>`).join(" ");
+$("card").querySelector("h1").innerHTML = '<span class="w" style="--i:0;--d:0ms">Way</span><span class="w f" style="--i:1;--d:0ms">Found</span>';
+
+const ease = {
+  inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+  out: (t) => 1 - Math.pow(1 - t, 3),
+  sine: (t) => -(Math.cos(Math.PI * t) - 1) / 2,
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const frame = () => new Promise((r) => requestAnimationFrame(r));
+
+const runs = {};
+async function tween(key, ms, easing, fn) {
+  const id = (runs[key] = (runs[key] ?? 0) + 1);
+  const t0 = performance.now();
+  for (;;) {
+    const t = Math.min(1, (performance.now() - t0) / ms);
+    if (runs[key] !== id) return;
+    fn(easing(t));
+    if (t >= 1) return;
+    await frame();
+  }
+}
+
+const GEO = {
+  desktop: { kind: "desktop", w: 1600, h: 900, x: 160, y: 90, pad: 0 },
+  phone: { kind: "phone", w: 390, h: 844, x: (W - 414) / 2, y: (H - 868) / 2, pad: 12 },
+};
+const slots = [0, 1].map((i) => ({ el: $("dev" + i), frame: $("app" + i), geo: { ...GEO.desktop } }));
+let cur = 0, q = 0;
+const camera = { x: W / 2, y: H / 2, z: 1 };
+function place(slot, kind) {
+  const g = (slot.geo = { ...GEO[kind] });
+  slot.el.classList.remove("desktop", "phone"); slot.el.classList.add(kind);
+  slot.el.style.left = g.x + "px"; slot.el.style.top = g.y + "px";
+  slot.el.style.width = g.w + g.pad * 2 + "px"; slot.el.style.height = g.h + g.pad * 2 + "px";
+  slot.frame.style.width = g.w + "px"; slot.frame.style.height = g.h + "px";
+}
+place(slots[0], "desktop"); place(slots[1], "desktop");
+const appFrame = () => slots[q].frame;
+function applyCamera() {
+  cam.style.transform = `translate(${W / 2 - camera.x * camera.z}px, ${H / 2 - camera.y * camera.z}px) scale(${camera.z})`;
+  const inv = `scale(${1 / camera.z})`;
+  cursor.style.transform = inv; ripple.style.transform = inv; finger.style.transform = inv;
+}
+applyCamera();
+
+const stage = {
+  toWorld(x, y) { const g = slots[q].geo; return [g.x + g.pad + x, g.y + g.pad + y]; },
+  toScreen(wx, wy) { return [W / 2 + (wx - camera.x) * camera.z, H / 2 + (wy - camera.y) * camera.z]; },
+
+  prepare(kind) {
+    const back = 1 - cur;
+    slots.forEach((sl, i) => sl.el.classList.toggle("back", i === back));
+    place(slots[back], kind);
+    slots[back].el.style.setProperty("--dev-ms", "0ms");
+    slots[back].el.dataset.shown = "false";
+    q = back;
+  },
+  load(url) {
+    return new Promise((resolve) => {
+      appFrame().onload = () => resolve(true);
+      appFrame().src = url;
+    });
+  },
+  async ghost(url) {
+    const g = $("ghost");
+    g.style.transition = "none"; g.style.opacity = 1; g.style.webkitMaskImage = "none"; g.src = url;
+    await g.decode();
+  },
+  swapNow(zoom = 1) {
+    const back = q, front = cur;
+    slots[back].el.style.setProperty("--dev-ms", "0ms");
+    slots[front].el.style.setProperty("--dev-ms", "0ms");
+    slots[back].el.dataset.shown = "true";
+    slots[front].el.dataset.shown = "false";
+    cur = back; q = cur;
+    slots.forEach((sl) => sl.el.classList.remove("back"));
+    camera.x = W / 2; camera.y = H / 2; camera.z = zoom * 0.95; applyCamera();
+  },
+  async dissolve(ms = 900, zoom = 1, mode = "fade") {
+    const g = $("ghost");
+    const move = stage.camera(W / 2, H / 2, zoom, ms);
+    if (mode === "wipe") {
+      await tween("wipe", ms, ease.inOut, (e) => {
+        const p = -15 + 130 * e;
+        g.style.webkitMaskImage = `linear-gradient(90deg, transparent ${p - 15}%, #000 ${p}%)`;
+      });
+    } else {
+      g.style.transition = `opacity ${ms}ms ease-in-out`; g.style.opacity = 0;
+      await sleep(ms + 30);
+    }
+    g.style.opacity = 0; g.style.webkitMaskImage = "none";
+    await move;
+  },
+  rect(selector, text) {
+    const doc = appFrame().contentDocument;
+    let el = null;
+    if (text != null) el = [...doc.querySelectorAll(selector)].find((e) => e.textContent.trim() === text);
+    else el = doc.querySelector(selector);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  },
+  app() { return appFrame().contentDocument; },
+  mapIdle() {
+    const m = appFrame().contentWindow.__map;
+    return !!(m && m.loaded() && m.areTilesLoaded() && !m.isMoving());
+  },
+
+  focus(rect, { pad = 80, max = 2.2, ms = 1400, bias = [0, 0] } = {}) {
+    const [cx, cy] = stage.toWorld(rect.x + rect.w / 2 + bias[0], rect.y + rect.h / 2 + bias[1]);
+    const z = Math.max(1, Math.min(max, W / (rect.w + pad * 2), (H - 160) / (rect.h + pad * 2)));
+    return stage.camera(cx, cy, z, ms);
+  },
+  home(ms = 1400) { return stage.camera(W / 2, H / 2, 1, ms); },
+  camera(x, y, z, ms = 1400) {
+    const a = { ...camera };
+    return tween("cam", ms, ease.inOut, (e) => {
+      camera.x = a.x + (x - a.x) * e;
+      camera.y = a.y + (y - a.y) * e;
+      camera.z = a.z * Math.pow(z / a.z, e);
+      applyCamera();
+    });
+  },
+
+  pos: { x: 220, y: 160 },
+  cursorAt(x, y) {
+    stage.pos = { x, y };
+    const [wx, wy] = stage.toWorld(x, y);
+    cursor.style.left = wx + "px"; cursor.style.top = wy + "px";
+  },
+  showCursor(on) { cursor.style.opacity = on ? 1 : 0; },
+  cursorIn(x, y, dx = 150, dy = 110) { stage.cursorAt(x + dx, y + dy); void cursor.offsetWidth; cursor.style.opacity = 1; },
+  deviceOut(ms = 450) { slots[cur].el.style.setProperty("--dev-ms", ms + "ms"); slots[cur].el.dataset.shown = "false"; return sleep(ms + 20); },
+  deviceIn(ms = 650) { slots[cur].el.style.setProperty("--dev-ms", ms + "ms"); slots[cur].el.dataset.shown = "true"; return sleep(ms + 20); },
+  reveal() { slots[cur].el.style.setProperty("--dev-ms", "0ms"); slots[cur].el.dataset.shown = "true"; return stage.card(false); },
+  async moveTo(x, y, ms) {
+    const a = { ...stage.pos };
+    const dx = x - a.x, dy = y - a.y, dist = Math.hypot(dx, dy);
+    if (ms == null) ms = Math.max(420, Math.min(1100, 320 + dist * 0.9));
+    const nx = -dy / (dist || 1), ny = dx / (dist || 1), bulge = dist * 0.1;
+    const cx = a.x + dx / 2 + nx * bulge, cy = a.y + dy / 2 + ny * bulge;
+    await tween("cursor", ms, ease.inOut, (e) => {
+      const u = 1 - e;
+      stage.cursorAt(u * u * a.x + 2 * u * e * cx + e * e * x, u * u * a.y + 2 * u * e * cy + e * e * y);
+      stage.report();
+    });
+    stage.cursorAt(x, y); stage.report();
+  },
+  report() {
+    const [wx, wy] = stage.toWorld(stage.pos.x, stage.pos.y);
+    const [sx, sy] = stage.toScreen(wx, wy);
+    window.__mouse && window.__mouse(JSON.stringify([sx, sy]));
+  },
+  screenPos() { const [wx, wy] = stage.toWorld(stage.pos.x, stage.pos.y); return stage.toScreen(wx, wy); },
+  press() {
+    cursor.classList.add("press");
+    const [wx, wy] = stage.toWorld(stage.pos.x, stage.pos.y);
+    const r = document.createElement("i"); ripple.style.left = wx + "px"; ripple.style.top = wy + "px"; ripple.replaceChildren(r);
+    return stage.screenPos();
+  },
+  release() { cursor.classList.remove("press"); },
+
+  async swipe(x0, y0, x1, y1, ms = 700) {
+    stage.fingerAt(x0, y0); finger.style.opacity = 1; await sleep(220);
+    finger.classList.add("down");
+    window.__touch(JSON.stringify(["down", ...stage.fingerScreen(x0, y0)]));
+    await sleep(60);
+    await tween("finger", ms, ease.sine, (e) => {
+      const x = x0 + (x1 - x0) * e, y = y0 + (y1 - y0) * e;
+      stage.fingerAt(x, y);
+      window.__touch(JSON.stringify(["move", ...stage.fingerScreen(x, y)]));
+    });
+    window.__touch(JSON.stringify(["up", ...stage.fingerScreen(x1, y1)]));
+    finger.classList.remove("down"); await sleep(120); finger.style.opacity = 0;
+  },
+  async tap(x, y) {
+    stage.fingerAt(x, y); finger.style.opacity = 1; await sleep(260);
+    finger.classList.add("down");
+    window.__touch(JSON.stringify(["down", ...stage.fingerScreen(x, y)]));
+    await sleep(110);
+    window.__touch(JSON.stringify(["up", ...stage.fingerScreen(x, y)]));
+    finger.classList.remove("down"); await sleep(160); finger.style.opacity = 0;
+  },
+  fingerAt(x, y) { const [wx, wy] = stage.toWorld(x, y); finger.style.left = wx + "px"; finger.style.top = wy + "px"; },
+  fingerScreen(x, y) { const [wx, wy] = stage.toWorld(x, y); return stage.toScreen(wx, wy); },
+
+  async badges(items) {
+    stage.clearBadges();
+    for (const it of items) {
+      const b = document.createElement("div");
+      b.className = "badge"; b.style.setProperty("--c", it.color); b.innerHTML = "<i></i>" + it.text;
+      const [wx, wy] = stage.toWorld(it.x, it.y);
+      b.style.left = wx + "px"; b.style.top = wy + "px";
+      cam.appendChild(b);
+      void b.offsetWidth; b.classList.add("on");
+      await sleep(260);
+    }
+  },
+  clearBadges() {
+    const old = [...cam.querySelectorAll(".badge")];
+    old.forEach((b) => { b.classList.remove("on"); setTimeout(() => b.remove(), 450); });
+    return sleep(450);
+  },
+
+  captionSide(on) { $("caption").classList.toggle("side", on); },
+  caption(html) {
+    const el = $("caption");
+    if (!html) { el.classList.remove("on"); return sleep(400); }
+    if (el.classList.contains("on")) { el.classList.remove("on"); return sleep(260).then(() => { el.innerHTML = html; el.classList.add("on"); return sleep(380); }); }
+    el.innerHTML = html; el.classList.add("on"); return sleep(380);
+  },
+  cardPre(sub) { $("card").querySelector("p").innerHTML = flipWords(sub, 0, 350); $("card").classList.add("pre", "on"); },
+  card(on, sub) {
+    if (sub != null) { $("card").querySelector("p").innerHTML = flipWords(sub, 0, 350); void $("card").offsetWidth; }
+    $("card").classList.remove("pre");
+    $("card").classList.toggle("on", on);
+    return sleep(on ? 1500 : 650);
+  },
+  fade(on, ms = 350) { const f = $("fade"); f.style.transition = `opacity ${ms}ms ease`; f.style.opacity = on ? 1 : 0; return sleep(ms + 30); },
+};
+window.stage = stage;
+</script>
+</body>
+</html>

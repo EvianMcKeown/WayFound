@@ -1,0 +1,87 @@
+WAYFOUND HELP VIDEO: THE SCRIPT IN PLAIN TEXT
+=============================================
+
+The recording plays scripts/video/storyboard.mjs. This file is the same script in plain words, with the
+captions exactly as they appear on screen. Change the wording or the order here, then tell me, or edit the
+matching lines in storyboard.mjs yourself (each caption below is one caption(...) line there).
+
+It is a hybrid of showcase and help video: every gesture achieves something (opens the search, plans a trip,
+reveals the steps) and is never shown for its own sake, and the captions lead with the benefit. No voiceover
+or music: the captions carry it. Roughly 65 seconds. A thin green progress bar grows
+along the bottom edge for the whole video (the video player's own controls are meant to be hidden).
+
+The video plays signed in as a demo user ("Alex"), so "Save this route" really changes to "Saved".
+
+
+SCENE 1. INTRO                                                  0:00 - 0:04
+  Picture   Brand card: the WayFound mark, and the name and line under it flip down into place, word by
+            word. The app is already loaded behind it; the card dissolves into the app.
+  On card   "Every bus and train. One map."
+  Captions  none
+
+
+SCENE 2. DESKTOP: FROM TWO PLACES TO A SAVED TRIP
+  Picture   The app in a laptop-sized window, signed in as the demo user. The trip is Gugulethu to the V&A
+            Waterfront, which uses all three operators: Golden Arrow, Metrorail and MyCiTi (with walks).
+
+  CAPTION  "Start anywhere in Cape Town"
+        - The camera zooms on the search panel. The pointer appears at the From field and clicks it. Types
+          "Gugulethu" (quickly); the first suggestion is chosen.
+
+  CAPTION  "Go anywhere else"
+        - Pointer moves to the To field. Types "V&A Waterfront"; the first suggestion is chosen.
+        - Pointer clicks Find route, then disappears. The camera pulls back as the route draws on the map.
+
+  CAPTION  "Three operators, one journey"
+        - Hold on the whole screen: route on the map, trip in the panel.
+
+  CAPTION  "Every operator in its own colour"
+        - The camera zooms once, on the list of legs and the Save button together, and does not move again.
+          A small tag appears beside each leg in turn: On foot, Golden Arrow, Metrorail, MyCiTi.
+
+  CAPTION  "Taking it again? Save it for next time"
+        - Same view. The pointer clicks Save this route; the button changes to "Saved" with a small pop of the
+          bookmark. The pointer disappears and the camera pulls back out.
+
+
+TRANSITION. A frozen frame of the laptop scene dissolves into the phone scene, with the camera easing in.
+
+
+SCENE 3. PHONE: PLAN, READ, CHANGE
+  Picture   A phone frame in the middle of the screen. Captions sit beside the phone so the bottom sheet
+            stays in view. A finger marker shows each swipe and tap; there is no mouse pointer.
+
+  CAPTION  "Your whole city, in your pocket"
+        - Hold on the empty planner: map full screen, "Where to?" bar at the bottom.
+
+  CAPTION  "Swipe up to start planning"
+        - Finger swipes up from the "Where to?" bar; the search sheet opens.
+
+  CAPTION  "Search any place by name"
+        - Finger taps From; types "Gugulethu"; taps the first suggestion.
+        - Finger taps To; types "V&A Waterfront"; taps the first suggestion.
+        - Finger taps Find route; the sheet folds to a summary and the route draws on the map.
+
+  CAPTION  "Swipe up for step-by-step directions"
+        - A moment on the trip, then the finger swipes up; the sheet grows to show every step.
+
+  CAPTION  "Swipe down for the full map"
+        - Finger swipes down; the sheet shrinks and the whole map is back in view.
+
+  CAPTION  "Less walking? Re-plan instantly"
+        - Finger taps the pencil; the "Change journey" form opens over the trip.
+        - Finger taps Options, then "Minimise walking", then Find route; the route redraws with less walking.
+
+
+SCENE 4. OUTRO
+  Picture   The closing card dissolves in over the phone (its line flips down word by word), holds, then the
+            whole video fades out.
+  On card   "Your next trip, planned in seconds."
+  Captions  none
+
+
+NOTES FOR EDITING
+  - Keep each caption to about six words and give it at least 1.5 seconds.
+  - The same captions are saved as subtitles (help-video.vtt), so the wording here is what viewers who
+    cannot hear or see the picture well will read.
+  - Scene lengths are set by the "wait" lines in storyboard.mjs, not by this file.

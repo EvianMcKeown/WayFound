@@ -35,8 +35,15 @@ export default function FAQ() {
 
             <Panel as="section" aria-labelledby="video-heading" className="p-4">
                 <h2 id="video-heading" className="mb-3 text-sm font-semibold text-mist-700">Watch the help video</h2>
-                <video controls preload="metadata" className="aspect-video w-full rounded-lg bg-brand-700" aria-label="Journey plan walkthrough">
-                    <source src="/vid2.mp4" type="video/mp4" />
+                <video
+                    controls
+                    preload="metadata"
+                    poster="/help-video-poster.jpg"
+                    className="aspect-video w-full rounded-lg bg-mist-100"
+                    aria-label="Journey plan walkthrough"
+                >
+                    <source src="/help-video.mp4" type="video/mp4" />
+                    <track kind="captions" src="/help-video.vtt" srcLang="en" label="English" default />
                 </video>
             </Panel>
 
