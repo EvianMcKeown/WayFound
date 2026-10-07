@@ -14,7 +14,27 @@ const PORT = 9300 + Math.floor(Math.random() * 500);
 const CHROME = args.chrome ?? "google-chrome";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const VIEWPORTS = { desktop: [1440, 900], mobile: [390, 844] };
+const OVERFLOW_CHECK = `(() => {
+    const vw = document.documentElement.clientWidth;
+    const out = [];
+    const desc = (el) => el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + (typeof el.className === "string" && el.className.trim() ? "." + el.className.trim().split(/\s+/).slice(0, 3).join(".") : "");
+    if (document.documentElement.scrollWidth > vw + 1) out.push("page scrolls sideways: " + document.documentElement.scrollWidth + " > " + vw);
+    for (const el of document.querySelectorAll("body *")) {
+        if (el.closest(".maplibregl-map")) continue;
+        const cs = getComputedStyle(el);
+        if ((cs.overflowX === "auto" || cs.overflowX === "scroll") && el.scrollWidth > el.clientWidth + 1) {
+            out.push("scrolls sideways: " + desc(el) + " " + el.scrollWidth + " > " + el.clientWidth);
+        }
+    }
+    for (const el of document.querySelectorAll("input, select, textarea, button, a, p, h1, h2, h3, img, label, li, dd, dt, summary")) {
+        if (el.closest(".maplibregl-map, [aria-hidden=true], .sr-only")) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width && (r.right > vw + 1 || r.left < -1)) out.push("sticks out: " + desc(el) + " [" + Math.round(r.left) + ", " + Math.round(r.right) + "] of " + vw);
+    }
+    return out;
+})()`;
+
+const VIEWPORTS = { desktop: [1440, 900], mobile: [Number(args.width) || 390, 844] };
 
 const JOURNEY = "/?from=-33.92210,18.42570&fromLabel=Cape%20Town%20Station&to=-33.98060,18.46530&toLabel=Claremont%20Station";
 
@@ -107,6 +127,81 @@ const SHOTS = [
             if (!(expanded > peek + 100 && Math.abs(back - peek) < 4)) throw new Error('sheet did not expand and collapse');
             await wheel(60);
             await sleep(600);
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "planner-pull-open",
+        path: "/",
+        only: "mobile",
+        setup: async (p) => {
+            await p.waitFor("!!window.__map", "planner");
+            await p.waitFor(`[...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Where to?')`, "Where to? button");
+            await sleep(500);
+            await p.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+            const pull = async (x, y) => {
+                await p.send("Input.synthesizeScrollGesture", { x, y, yDistance: -200, gestureSourceType: "touch", speed: 800 });
+                await sleep(700);
+                return p.eval(`!!document.querySelector('#time-sheet')`);
+            };
+            const spot = (find) =>
+                p.eval(`(() => { const r = (${find}).getBoundingClientRect(); return [Math.round(r.left + 40), Math.round(r.top + r.height / 2)]; })()`);
+            const onButton = await spot(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Where to?')`);
+            const fromButton = await pull(...onButton);
+            if (!fromButton) throw new Error('dragging up from "Where to?" did not open the search');
+            await p.eval(`[...document.querySelectorAll('button[aria-label="Close search"]')].forEach((b) => b.click())`);
+            await sleep(500);
+            const around = await p.eval(`(() => { const r = document.querySelector('section[aria-label="Journey planner"]').getBoundingClientRect(); return [Math.round(r.right - 20), Math.round(r.top + 16)]; })()`);
+            const fromSpace = await pull(...around);
+            if (!fromSpace) throw new Error("dragging up from the space around Where to? did not open the search");
+            const sheetBox = () =>
+                p.eval(`(() => { const r = document.querySelector('section[aria-label="Journey planner"]').getBoundingClientRect(); return [Math.round(r.left + 100), Math.round(r.top + 50)]; })()`);
+            const push = async (x, y) => {
+                await p.send("Input.synthesizeScrollGesture", { x, y, yDistance: 250, gestureSourceType: "touch", speed: 800 });
+                await sleep(700);
+                return p.eval(`!document.querySelector('#time-sheet')`);
+            };
+            const closedFromHeading = await push(...(await sheetBox()));
+            if (!closedFromHeading) throw new Error("dragging down on the Plan a journey sheet did not close it");
+            await p.eval(`location.href = ${JSON.stringify(JOURNEY)}`);
+            await p.waitFor(`${RESULT}?.innerText.includes('→')`, "journey result");
+            await sleep(800);
+            await p.eval(`document.querySelector('button[aria-label="Change journey"]').click()`);
+            await p.waitFor("!!document.querySelector('#time-sheet')", "search form");
+            await sleep(500);
+            const closedOverTrip = await push(...(await sheetBox()));
+            console.log(`pull: from the button ${fromButton}, from the space around it ${fromSpace}; drag down closes it ${closedFromHeading}, over a trip ${closedOverTrip}`);
+            await p.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+            if (!closedOverTrip) throw new Error("dragging down on Change journey did not close it");
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "planner-touch-up-down",
+        path: JOURNEY,
+        only: "mobile",
+        setup: async (p) => {
+            await replan(1, "08:00")(p);
+            await p.waitFor(`${RESULT}?.innerText.includes("08:00 →")`, "08:00 journey result");
+            await sleep(500);
+            await p.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+            const sheet = `document.querySelector('section[aria-label="Journey planner"]')`;
+            const height = () => p.eval(`Math.round(${sheet}.getBoundingClientRect().height)`);
+            const swipe = async (x, y, distance) => {
+                await p.send("Input.synthesizeScrollGesture", { x, y, yDistance: distance, gestureSourceType: "touch", speed: 800 });
+                await sleep(700);
+            };
+            const topOf = () => p.eval(`Math.round(${sheet}.getBoundingClientRect().top)`);
+            const peek = await height();
+            await swipe(60, (await topOf()) + 80, -200);
+            const up = await height();
+            await swipe(60, (await topOf()) + 50, 250);
+            const down = await height();
+            await swipe(300, (await topOf()) + peek - 60, -200);
+            const upOnButton = await height();
+            console.log(`touch: peek ${peek}px, swipe up ${up}px, swipe down ${down}px, swipe up from the buttons ${upOnButton}px`);
+            await p.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+            if (!(up > peek + 100 && Math.abs(down - peek) < 4 && upOnButton > peek + 100)) throw new Error("touch swipes did not move the sheet");
         },
         ready: mapIdle,
     },
@@ -329,6 +424,12 @@ try {
             if (shot.setup) await shot.setup(page);
             if (shot.ready) await shot.ready(page);
             await sleep(shot.ready === mapIdle || shot.name.startsWith("planner") ? 1500 : 500);
+            const overflow = await page.eval(OVERFLOW_CHECK);
+            if (overflow?.length) {
+                console.log(`OVERFLOW ${shot.name} (${label}):`);
+                overflow.slice(0, 8).forEach((line) => console.log("   ", line));
+                process.exitCode = 1;
+            }
             const file = join(OUT, `${shot.name}-${label}.png`);
             const { result } = await page.send("Page.captureScreenshot", { format: "png" });
             writeFileSync(file, Buffer.from(result.data, "base64"));

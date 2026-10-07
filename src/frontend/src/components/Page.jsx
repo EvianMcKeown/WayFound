@@ -9,7 +9,7 @@ const WIDTH = { sm: "max-w-md", md: "max-w-2xl", lg: "max-w-3xl" };
 export default function Page({ width = "md", centered = false, children }) {
     return (
         <AppShell>
-            <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto bg-gradient-to-br from-brand-50 via-white to-mist-100">
+            <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-gradient-to-br from-brand-50 via-white to-mist-100">
                 <div aria-hidden="true" className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-brand-500/10 blur-3xl" />
                 <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 h-80 w-80 rounded-full bg-brand-500/15 blur-3xl" />
                 <div aria-hidden="true" className="pointer-events-none absolute -right-20 bottom-24 h-80 w-80 rounded-full bg-brand-300/30 blur-3xl" />

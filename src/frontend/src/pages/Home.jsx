@@ -371,6 +371,10 @@ export default function Home() {
     const showForm = hasTrip ? editing : searchOpen;
     const summary = <SearchSummary origin={origin} destination={destination} day={day} time={time} onEdit={() => setEditing(true)} />;
 
+    const pull = !showForm && !tripOk ? () => (hasTrip ? setEditing(true) : setSearchOpen(true)) : undefined;
+
+    const dismiss = showForm ? () => (hasTrip ? setEditing(false) : setSearchOpen(false)) : undefined;
+
     let pinned = null;
     let peek;
     let more = null;
@@ -469,6 +473,8 @@ export default function Home() {
                     expanded={more != null && tripExpanded}
                     onExpandedChange={setTripExpanded}
                     onHeightChange={setSheetHeight}
+                    onPull={pull}
+                    onDismiss={dismiss}
                     pinned={pinned}
                     peek={peek}
                     more={more}

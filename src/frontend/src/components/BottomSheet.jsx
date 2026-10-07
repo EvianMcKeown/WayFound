@@ -4,7 +4,7 @@ const TOP_GAP_PX = 135;
 const GRAB_PX = 24;
 const GRABBER_BLOCK_PX = 24;
 
-export default function BottomSheet({ label, expanded, onExpandedChange, onHeightChange, pinned = null, peek, more = null }) {
+export default function BottomSheet({ label, expanded, onExpandedChange, onHeightChange, onPull, onDismiss, pinned = null, peek, more = null }) {
     const rootRef = useRef(null);
     const scrollRef = useRef(null);
     const pinnedRef = useRef(null);
@@ -31,7 +31,9 @@ export default function BottomSheet({ label, expanded, onExpandedChange, onHeigh
 
     const peekHeight = sizes.pinned + sizes.peek + GRABBER_BLOCK_PX;
     const fullHeight = sizes.pinned + sizes.full + GRABBER_BLOCK_PX;
-    const height = !sizes.peek ? undefined : expanded && canExpand ? Math.min(fullHeight, sizes.available) : peekHeight;
+    const peekCapped = sizes.available > 0 ? Math.min(peekHeight, sizes.available) : peekHeight;
+    const scrollable = expanded || peekHeight > peekCapped;
+    const height = !sizes.peek ? undefined : expanded && canExpand ? Math.min(fullHeight, sizes.available) : peekCapped;
 
     useEffect(() => {
         if (height != null) onHeightChange?.(height);
@@ -43,11 +45,13 @@ export default function BottomSheet({ label, expanded, onExpandedChange, onHeigh
     const onPointerMove = (e) => {
         if (!drag.current) return;
         const dy = e.clientY - drag.current.y;
-        if (!expanded && canExpand && dy < -GRAB_PX) {
-            onExpandedChange(true);
+        if (!expanded && dy < -GRAB_PX && (canExpand || onPull)) {
+            if (canExpand) onExpandedChange(true);
+            else onPull();
             drag.current = null;
-        } else if (expanded && dy > GRAB_PX && (scrollRef.current?.scrollTop ?? 0) <= 0) {
-            onExpandedChange(false);
+        } else if (dy > GRAB_PX && (scrollRef.current?.scrollTop ?? 0) <= 0 && (expanded || onDismiss)) {
+            if (expanded) onExpandedChange(false);
+            else onDismiss();
             drag.current = null;
         }
     };
@@ -55,9 +59,56 @@ export default function BottomSheet({ label, expanded, onExpandedChange, onHeigh
         drag.current = null;
     };
     const onWheel = (e) => {
-        if (!expanded && canExpand && e.deltaY > 8) onExpandedChange(true);
-        else if (expanded && e.deltaY < -8 && (scrollRef.current?.scrollTop ?? 0) <= 0) onExpandedChange(false);
+        if (!expanded && e.deltaY > 8 && (canExpand || onPull)) {
+            if (canExpand) onExpandedChange(true);
+            else onPull();
+        } else if (e.deltaY < -8 && (scrollRef.current?.scrollTop ?? 0) <= 0 && (expanded || onDismiss)) {
+            if (expanded) onExpandedChange(false);
+            else onDismiss();
+        }
     };
+    const latest = useRef({});
+    latest.current = { expanded, canExpand, onExpandedChange, onPull, onDismiss };
+    useEffect(() => {
+        const el = rootRef.current;
+        if (!el) return;
+        let startY = null;
+        const onStart = (e) => {
+            startY = e.touches.length === 1 ? e.touches[0].clientY : null;
+        };
+        const onMove = (e) => {
+            if (startY == null) return;
+            const { expanded, canExpand, onExpandedChange, onPull, onDismiss } = latest.current;
+            const dy = e.touches[0].clientY - startY;
+            if (!expanded && (canExpand || onPull)) {
+                e.preventDefault();
+                if (dy < -GRAB_PX) {
+                    if (canExpand) onExpandedChange(true);
+                    else onPull();
+                    startY = null;
+                }
+            } else if (dy > GRAB_PX && (scrollRef.current?.scrollTop ?? 0) <= 0 && (expanded || onDismiss)) {
+                e.preventDefault();
+                if (expanded) onExpandedChange(false);
+                else onDismiss();
+                startY = null;
+            }
+        };
+        const end = () => {
+            startY = null;
+        };
+        el.addEventListener("touchstart", onStart, { passive: true });
+        el.addEventListener("touchmove", onMove, { passive: false });
+        el.addEventListener("touchend", end, { passive: true });
+        el.addEventListener("touchcancel", end, { passive: true });
+        return () => {
+            el.removeEventListener("touchstart", onStart);
+            el.removeEventListener("touchmove", onMove);
+            el.removeEventListener("touchend", end);
+            el.removeEventListener("touchcancel", end);
+        };
+    }, []);
+
     const onKeyDown = (e) => {
         if (e.key === "Escape" && expanded) onExpandedChange(false);
     };
@@ -72,7 +123,7 @@ export default function BottomSheet({ label, expanded, onExpandedChange, onHeigh
             onPointerCancel={endDrag}
             onWheel={onWheel}
             onKeyDown={onKeyDown}
-            style={{ height, touchAction: expanded ? "pan-y" : "none" }}
+            style={{ height, touchAction: scrollable ? "pan-y" : "none" }}
             className="absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-3xl bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.14)] transition-[height] duration-[250ms] ease-out motion-reduce:transition-none"
         >
             {canExpand ? (
@@ -91,7 +142,7 @@ export default function BottomSheet({ label, expanded, onExpandedChange, onHeigh
                 </div>
             )}
             {pinned != null && <div ref={pinnedRef} className="shrink-0">{pinned}</div>}
-            <div ref={scrollRef} className={`min-h-0 flex-1 overscroll-contain ${expanded ? "overflow-y-auto" : "overflow-hidden"}`}>
+            <div ref={scrollRef} className={`min-h-0 flex-1 overscroll-contain ${scrollable ? "overflow-y-auto" : "overflow-hidden"}`}>
                 <div ref={fullRef}>
                     <div ref={peekRef}>{peek}</div>
                     {more}
