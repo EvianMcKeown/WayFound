@@ -188,6 +188,8 @@ class PlanJourneyView(APIView):
             minimize_stops=minimize_stops,
             use_dijkstra=use_dijkstra,
             alternatives=data.get("alternatives", 1),
+            exclude_modes=tuple(data.get("exclude_modes", ())),
+            exclude_lines=tuple(data.get("exclude_lines", ())),
         )
 
         # Minimal response
@@ -201,6 +203,10 @@ class PlanJourneyView(APIView):
                 "target_stop": out.get("target_stop"),
                 "algorithm_used": "Dijkstra" if use_dijkstra else "RAPTOR",
         }
+        body["exclusions"] = out["exclusions"]
+        if out.get("blocked_by_exclusions"):
+            body["blocked_by_exclusions"] = True
+            body["blocked_by"] = out["blocked_by"]
         if "journeys" in out:
             body["journeys"] = [
                 {
@@ -235,6 +241,23 @@ class PlanJourneyView(APIView):
 # -------------------------------
 # USER PREFERENCES
 # -------------------------------
+class LinesView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        engine = get_engine()
+        limit = min(max(int(request.query_params.get("limit", 50) or 50), 1), 200)
+        mode = request.query_params.get("mode")
+        keys = request.query_params.get("keys")
+        found = engine.search_lines(
+            query=request.query_params.get("q", ""),
+            mode=int(mode) if mode not in (None, "") else None,
+            keys=[k for k in keys.split(",") if k] if keys is not None else None,
+            limit=limit,
+        )
+        return Response(found)
+
+
 class PreferencesView(generics.RetrieveUpdateAPIView):
     serializer_class = PreferencesSerializer
     permission_classes = [IsAuthenticated]

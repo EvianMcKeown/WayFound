@@ -133,10 +133,71 @@ class PreferencesTests(APITestCase):
 
     def test_defaults_then_update(self):
         resp = self.client.get("/api/preferences/")
-        self.assertEqual(resp.data, {"minimize_walking": False, "minimize_stops": False})
+        avoid_nothing = {"excluded_modes": [], "excluded_lines": [], "excluded_lines_detail": []}
+        self.assertEqual(resp.data, {"minimize_walking": False, "minimize_stops": False, **avoid_nothing})
         resp = self.client.patch("/api/preferences/", {"minimize_walking": True}, format="json")
-        self.assertEqual(resp.data, {"minimize_walking": True, "minimize_stops": False})
+        self.assertEqual(resp.data, {"minimize_walking": True, "minimize_stops": False, **avoid_nothing})
         self.assertTrue(self.client.get("/api/preferences/").data["minimize_walking"])
+
+
+class AvoidedTransportPreferenceTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("a", "a@example.com", STRONG)
+        auth(self.client, self.user)
+
+    def test_defaults_to_avoiding_nothing(self):
+        data = self.client.get("/api/preferences/").data
+        self.assertEqual(data["excluded_modes"], [])
+        self.assertEqual(data["excluded_lines"], [])
+
+    def test_modes_and_lines_are_saved_with_labels(self):
+        resp = self.client.patch(
+            "/api/preferences/",
+            {"excluded_modes": [2, 0, 2], "excluded_lines": ["mc:113", "mc:113", "gone:line"]},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["excluded_modes"], [0, 2])
+        self.assertEqual(resp.data["excluded_lines"], ["mc:113", "gone:line"])
+        detail = {d["key"]: d for d in resp.data["excluded_lines_detail"]}
+        self.assertEqual(detail["mc:113"]["label"], "113")
+        self.assertTrue(detail["gone:line"]["unavailable"])
+        self.assertEqual(self.client.get("/api/preferences/").data["excluded_modes"], [0, 2])
+
+    def test_other_preferences_are_left_alone(self):
+        self.client.patch("/api/preferences/", {"minimize_walking": True}, format="json")
+        self.client.patch("/api/preferences/", {"excluded_modes": [1]}, format="json")
+        data = self.client.get("/api/preferences/").data
+        self.assertTrue(data["minimize_walking"])
+        self.assertEqual(data["excluded_modes"], [1])
+
+    def test_invalid_values_are_rejected(self):
+        for body in ({"excluded_modes": [3]}, {"excluded_modes": ["x"]}, {"excluded_lines": ["a"] * 51}):
+            self.assertEqual(self.client.patch("/api/preferences/", body, format="json").status_code, 400)
+
+
+class LinesEndpointTests(APITestCase):
+    def test_search_by_words_and_operator(self):
+        found = self.client.get("/api/lines/", {"q": "bellville cape"}).data
+        self.assertTrue(found)
+        self.assertTrue(all(l["operator"] == "Golden Arrow" for l in found))
+        self.assertTrue(all("bellville" in l["label"].lower() for l in found))
+        metro = self.client.get("/api/lines/", {"mode": 2}).data
+        self.assertEqual({l["operator"] for l in metro}, {"Metrorail"})
+        self.assertGreaterEqual(len(metro), 4)
+
+    def test_both_directions_of_a_myciti_line_are_one_line(self):
+        line = self.client.get("/api/lines/", {"q": "101", "mode": 0}).data
+        self.assertEqual([(l["label"], l["directions"]) for l in line], [("101", 2)])
+
+    def test_exact_keys_and_limit(self):
+        found = self.client.get("/api/lines/", {"keys": "mc:101,nope"}).data
+        self.assertEqual([l["key"] for l in found], ["mc:101"])
+        self.assertEqual(len(self.client.get("/api/lines/", {"limit": 5}).data), 5)
+
+    def test_needs_no_account(self):
+        self.client.credentials()
+        self.assertEqual(self.client.get("/api/lines/").status_code, 200)
 
 
 class IssueReportTests(APITestCase):
@@ -265,3 +326,45 @@ class PlanEndpointTests(APITestCase):
                 self.assertEqual(full["path"], pruned["path"])
         finally:
             raptor.PRUNE = True
+
+    def rides(self, data):
+        return [s for s in data["path_objs"] if s["mode"] == "trip"]
+
+    def test_rides_say_which_line_they_are(self):
+        data = self.plan(self.GUGULETHU, self.WATERFRONT)
+        lines = [r["line"]["key"] for r in self.rides(data)]
+        self.assertIn("mr:southern", lines)
+        self.assertEqual(data["exclusions"], {"modes": [], "lines": [], "unknown_lines": [], "routes_banned": 0})
+
+    def test_avoiding_an_operator_removes_it_from_every_option(self):
+        data = self.plan(self.GUGULETHU, self.WATERFRONT, exclude_modes=[2], alternatives=5)
+        for journey in [data, *data["journeys"]]:
+            self.assertNotIn(2, {r["line"]["mode"] for r in self.rides(journey)})
+        self.assertTrue(data["earliest_arrival"])
+
+    def test_avoiding_a_line_keeps_its_other_lines(self):
+        data = self.plan(self.GUGULETHU, self.WATERFRONT, exclude_lines=["mr:southern"])
+        self.assertNotIn("mr:southern", [r["line"]["key"] for r in self.rides(data)])
+        self.assertEqual(data["exclusions"]["lines"], ["mr:southern"])
+        self.assertGreater(data["exclusions"]["routes_banned"], 0)
+
+    def test_unknown_lines_are_reported_and_ignored(self):
+        data = self.plan(self.GUGULETHU, self.WATERFRONT, exclude_lines=["nope"])
+        self.assertEqual(data["exclusions"]["unknown_lines"], ["nope"])
+        self.assertEqual(data["exclusions"]["lines"], [])
+        self.assertEqual(data["path_objs"], self.plan(self.GUGULETHU, self.WATERFRONT)["path_objs"])
+
+    def test_nothing_found_because_of_what_was_avoided_says_so(self):
+        data = self.plan(self.GUGULETHU, self.WATERFRONT, exclude_modes=[1])
+        self.assertIsNone(data["earliest_arrival"])
+        self.assertTrue(data["blocked_by_exclusions"])
+        self.assertEqual(data["blocked_by"], [{"type": "mode", "mode": 1, "label": "Golden Arrow"}])
+
+    def test_no_hint_when_nothing_is_avoided_or_the_trip_is_possible(self):
+        self.assertNotIn("blocked_by_exclusions", self.plan(self.GUGULETHU, self.WATERFRONT))
+        self.assertNotIn("blocked_by_exclusions", self.plan(self.GUGULETHU, self.WATERFRONT, exclude_modes=[2]))
+
+    def test_exclusion_values_are_validated(self):
+        body = {"source_lat": 0, "source_lon": 0, "target_lat": 1, "target_lon": 1, "day": 1, "time": "08:00"}
+        for extra in ({"exclude_modes": [3]}, {"exclude_modes": [0, 1, 2, 1]}, {"exclude_lines": ["x"] * 51}):
+            self.assertEqual(self.client.post("/api/plan/", {**body, **extra}, format="json").status_code, 400)

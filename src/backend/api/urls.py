@@ -5,6 +5,7 @@ from .geocode import GeocodeView
 from .views import (
     signup,
     PreferencesView,
+    LinesView,
     IssueReportCreateView,
     CustomTokenObtainPairView,
     SavedRouteViewSet,
@@ -43,6 +44,7 @@ urlpatterns = [
     path("plan/", PlanJourneyView.as_view(), name="plan-journey"),
     path("geocode/", GeocodeView.as_view(), name="geocode"),
     path("preferences/", PreferencesView.as_view(), name="preferences"),
+    path("lines/", LinesView.as_view(), name="lines"),
     path("reports/", IssueReportCreateView.as_view(), name="reports"),
     # All registered API endpoints
     path("", include(router.urls)),

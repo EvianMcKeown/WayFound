@@ -10,6 +10,8 @@ class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     preference_min_walking = models.BooleanField(default=False)
     preference_min_stops = models.BooleanField(default=False)
+    excluded_modes = models.JSONField(default=list, blank=True)
+    excluded_lines = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return self.user.username

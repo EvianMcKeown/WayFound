@@ -76,10 +76,27 @@ class SavedRouteSerializer(serializers.ModelSerializer):
 class PreferencesSerializer(serializers.ModelSerializer):
     minimize_walking = serializers.BooleanField(source="preference_min_walking", required=False)
     minimize_stops = serializers.BooleanField(source="preference_min_stops", required=False)
+    excluded_modes = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=2), required=False, max_length=3
+    )
+    excluded_lines = serializers.ListField(child=serializers.CharField(max_length=120), required=False, max_length=50)
+    excluded_lines_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
-        fields = ["minimize_walking", "minimize_stops"]
+        fields = ["minimize_walking", "minimize_stops", "excluded_modes", "excluded_lines", "excluded_lines_detail"]
+
+    def validate_excluded_modes(self, value):
+        return sorted(set(value))
+
+    def validate_excluded_lines(self, value):
+        return list(dict.fromkeys(value))
+
+    def get_excluded_lines_detail(self, obj):
+        from .raptor_engine import get_engine
+
+        known = {l["key"]: l for l in get_engine().search_lines(keys=obj.excluded_lines)}
+        return [known.get(k, {"key": k, "label": k, "mode": None, "operator": None, "directions": 0, "unavailable": True}) for k in obj.excluded_lines]
 
 
 MAX_REPORT_CONTEXT_BYTES = 20_000
@@ -161,6 +178,12 @@ class PlanRequestSerializer(serializers.Serializer):
     minimize_walking = serializers.BooleanField(required=False, default=False)
     minimize_stops = serializers.BooleanField(required=False, default=False)
     alternatives = IntegerField(required=False, default=1, min_value=1, max_value=5)
+    exclude_modes = serializers.ListField(
+        child=serializers.IntegerField(min_value=0, max_value=2), required=False, default=list, max_length=3
+    )
+    exclude_lines = serializers.ListField(
+        child=serializers.CharField(max_length=120), required=False, default=list, max_length=50
+    )
     minimize_number_of_transfers = serializers.BooleanField(
         required=False, default=False
     )

@@ -125,6 +125,26 @@ def find_closest_stop(
     return closest_pair_recursive(points_sorted)
 
 
+MODE_NAMES = {0: "MyCiTi", 1: "Golden Arrow", 2: "Metrorail"}
+MODE_PREFIX = {0: "mc", 1: "ga", 2: "mr"}
+
+
+def line_of(route: Route) -> Tuple[str, str]:
+    prefix = MODE_PREFIX.get(route.mode, "x")
+    name = (route.name or route.id).strip()
+    if route.mode == 0:
+        base = name.rsplit("-", 1)[0] if "-" in name else name
+        return f"{prefix}:{base}", base
+    if route.mode == 2:
+        base = name.split(":", 1)[0].strip() if ":" in name else name
+        return f"{prefix}:{base.lower()}", base
+    parts = [p.strip() for p in name.split(" - ")]
+    if len(parts) == 2 and all(parts):
+        a, b = sorted(parts, key=str.lower)
+        return f"{prefix}:{a.lower()}~{b.lower()}", f"{a} \u2194 {b}"
+    return f"{prefix}:{name.lower()}", name
+
+
 VIRTUAL_START = "virtual_start"
 VIRTUAL_END = "virtual_end"
 
@@ -242,6 +262,60 @@ class RaptorEngine:
         self.transfer_map: Dict[Tuple[str, str], Transfer] = {}
         self.last_max_walk_distance: int = MAX_WALK_DIST
         self._transfer_cache: Dict[int, Tuple[List[Transfer], Dict]] = {}
+        self.lines: Dict[str, Dict[str, Any]] = {}
+        self.route_line: Dict[str, str] = {}
+        self.mode_routes: Dict[int, set] = {}
+
+    def _index_lines(self) -> None:
+        self.lines, self.route_line, self.mode_routes = {}, {}, {}
+        for rid, route in self.routes.items():
+            key, label = line_of(route)
+            line = self.lines.setdefault(
+                key, {"key": key, "label": label, "mode": route.mode, "operator": MODE_NAMES.get(route.mode, "?"), "routes": set()}
+            )
+            line["routes"].add(rid)
+            self.route_line[rid] = key
+            self.mode_routes.setdefault(route.mode, set()).add(rid)
+
+    def search_lines(self, query: str = "", mode: Optional[int] = None, keys: Optional[List[str]] = None, limit: int = 50) -> List[Dict[str, Any]]:
+        if not self._loaded:
+            self.load()
+        out = []
+        if keys is not None:
+            out = [self.lines[k] for k in keys if k in self.lines]
+        else:
+            words = query.lower().split()
+            for line in self.lines.values():
+                if mode is not None and line["mode"] != mode:
+                    continue
+                label = line["label"].lower()
+                if all(w in label for w in words):
+                    out.append(line)
+            out.sort(key=lambda l: (l["mode"], l["label"].lower()))
+        return [
+            {"key": l["key"], "label": l["label"], "mode": l["mode"], "operator": l["operator"], "directions": len(l["routes"])}
+            for l in out[:limit]
+        ]
+
+    def resolve_exclusions(self, modes=(), lines=()) -> Tuple[frozenset, List[str]]:
+        banned: set = set()
+        for m in modes:
+            banned |= self.mode_routes.get(m, set())
+        unknown = []
+        for key in lines:
+            line = self.lines.get(key)
+            if line is None:
+                unknown.append(key)
+            else:
+                banned |= line["routes"]
+        return frozenset(banned), unknown
+
+    def line_info(self, route_id: Optional[str]) -> Optional[Dict[str, Any]]:
+        key = self.route_line.get(route_id) if route_id else None
+        line = self.lines.get(key) if key else None
+        if not line:
+            return None
+        return {"key": line["key"], "label": line["label"], "mode": line["mode"], "operator": line["operator"]}
 
     def _transfers_for(self, max_walk_dist: int) -> Tuple[List[Transfer], Dict]:
         with self._lock:
@@ -265,6 +339,7 @@ class RaptorEngine:
                 if stop_id in self.stops:
                     self.stops[stop_id].approximate = True
             self.routes = reader.routes
+            self._index_lines()
             # build walk transfers (if non-default max_walk_distance is used, transfers need to be
             # created in the planner call)
             if custom_max_walk_dist is not None:
@@ -291,6 +366,8 @@ class RaptorEngine:
         minimize_walking: bool = False,
         minimize_stops: bool = False,
         alternatives: int = 1,
+        exclude_modes: Tuple[int, ...] = (),
+        exclude_lines: Tuple[str, ...] = (),
     ) -> Dict[str, Any]:
         if not self._loaded:
             self.load(custom_max_walk_dist=custom_max_walk_dist)
@@ -333,7 +410,9 @@ class RaptorEngine:
         algo = dijkstra_algo if use_dijkstra else raptor_algo
         prepared = None if use_dijkstra else prepare_network(search_stops, self.routes, search_transfers)
 
-        def run(banned: FrozenSet[str] = frozenset(), latest_arrival: int = INF):
+        excluded, unknown_lines = self.resolve_exclusions(exclude_modes, exclude_lines)
+
+        def run(banned: FrozenSet[str] = frozenset(), latest_arrival: int = INF, ignore_exclusions: bool = False):
             kwargs: Dict[str, Any] = dict(
                 stops=search_stops,
                 routes=self.routes,
@@ -345,7 +424,7 @@ class RaptorEngine:
                 debug=debug,
             )
             if prepared is not None:
-                kwargs.update(prepared=prepared, banned_routes=set(banned), latest_arrival=latest_arrival)
+                kwargs.update(prepared=prepared, banned_routes=set(banned) | (set() if ignore_exclusions else excluded), latest_arrival=latest_arrival)
             result, path = algo(**kwargs)
             arrival = result.get(VIRTUAL_END, INF)
             return result, ([] if arrival == INF else (path or []))
@@ -366,24 +445,56 @@ class RaptorEngine:
                 st = self.stops[stop_id]
                 return {"id": stop_id, "distance_m": hf.haversine(lat, lon, st.lat, st.lon)}
 
+            steps = _path_objs_to_json_safe(path_objs)
+            for step in steps:
+                if step.get("mode") == "trip":
+                    step["line"] = self.line_info(step.get("route_id"))
             return {
                 "earliest_arrival": earliest_arrival if earliest_arrival != INF else None,
                 "source_stop": used_stop(rides[0]["from_stop_id"] if rides else None, source_lat, source_lon),
                 "target_stop": used_stop(rides[-1]["stop_id"] if rides else None, target_lat, target_lon),
                 "result": {k: v for k, v in result.items() if k not in (VIRTUAL_START, VIRTUAL_END)},
                 "path": path,
-                "path_objs": _path_objs_to_json_safe(path_objs),
+                "path_objs": steps,
                 "area_radius_m": AREA_RADIUS_M,
             }
 
         result, path = run()
         out = package(result, path)
+        out["exclusions"] = {
+            "modes": sorted(set(exclude_modes)),
+            "lines": [k for k in exclude_lines if k not in unknown_lines],
+            "unknown_lines": unknown_lines,
+            "routes_banned": len(excluded),
+        }
+        if not path and excluded and not use_dijkstra:
+            free_result, free_path = run(ignore_exclusions=True)
+            if free_path:
+                out["blocked_by_exclusions"] = True
+                out["blocked_by"] = self._blockers(free_path, exclude_modes, exclude_lines)
 
         if alternatives > 1 and not use_dijkstra and path:
             found = self._alternatives(run, (result, path), departure_minutes, alternatives)
             out["journeys"] = [
                 {**package(r, p), **meta} for r, p, meta in found
             ]
+        return out
+
+    def _blockers(self, path: List[Dict[str, Any]], exclude_modes, exclude_lines) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        seen = set()
+        for step in path:
+            if step.get("mode") != "trip":
+                continue
+            info = self.line_info(step.get("route_id"))
+            if not info:
+                continue
+            if info["mode"] in exclude_modes and ("mode", info["mode"]) not in seen:
+                seen.add(("mode", info["mode"]))
+                out.append({"type": "mode", "mode": info["mode"], "label": info["operator"]})
+            if info["key"] in exclude_lines and ("line", info["key"]) not in seen:
+                seen.add(("line", info["key"]))
+                out.append({"type": "line", "key": info["key"], "label": f"{info['operator']} {info['label']}"})
         return out
 
     def _alternatives(self, run, best, departure_minutes: int, count: int, max_runs: int = 14, budget_s: float = 6.0):
