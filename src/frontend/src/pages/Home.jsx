@@ -31,6 +31,24 @@ function useMediaQuery(query) {
     return matches;
 }
 
+function SwapButton({ onSwap }) {
+    const [turns, setTurns] = useState(0);
+    return (
+        <Button
+            variant="secondary"
+            size="icon"
+            onClick={() => {
+                setTurns((t) => t + 1);
+                onSwap();
+            }}
+            aria-label="Swap start and destination"
+            className="shrink-0"
+        >
+            <SwapIcon turns={turns} />
+        </Button>
+    );
+}
+
 function SearchForm({ title, onClose, origin, destination, setOrigin, setDestination, swap, day, time, setWhen, options, planning, onSubmit }) {
     const suffix = title ? "-sheet" : "";
     return (
@@ -49,11 +67,7 @@ function SearchForm({ title, onClose, origin, destination, setOrigin, setDestina
                 placeholder="Address or place"
                 value={destination}
                 onChange={setDestination}
-                trailing={
-                    <Button variant="secondary" size="icon" onClick={swap} aria-label="Swap start and destination" className="shrink-0">
-                        <SwapIcon />
-                    </Button>
-                }
+                trailing={<SwapButton onSwap={swap} />}
             />
 
             <div className="grid grid-cols-2 gap-3">
@@ -68,7 +82,7 @@ function SearchForm({ title, onClose, origin, destination, setOrigin, setDestina
             <details className="group">
                 <summary className="flex cursor-pointer list-none items-center gap-1.5 py-1 text-sm font-medium text-mist-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 [&::-webkit-details-marker]:hidden">
                     Options
-                    <ChevronIcon className="h-4 w-4 text-mist-600 transition-transform group-open:rotate-180" />
+                    <ChevronIcon className="h-4 w-4 text-mist-600 group-open:rotate-180" />
                 </summary>
                 <div className="mt-3 flex flex-col gap-2 text-sm text-mist-700">
                     <Checkbox label="Minimise walking" checked={options.minimizeWalking} onChange={options.onWalking} />
@@ -211,10 +225,18 @@ export default function Home() {
         setSearchOpen(true);
     };
 
+    const [locating, setLocating] = useState(false);
     const locateMe = () => {
+        setLocating(true);
         navigator.geolocation?.getCurrentPosition(
-            (pos) => setOrigin({ label: "My location", lat: pos.coords.latitude, lon: pos.coords.longitude }),
-            () => setMessage({ text: "Could not get your location.", error: true }),
+            (pos) => {
+                setLocating(false);
+                setOrigin({ label: "My location", lat: pos.coords.latitude, lon: pos.coords.longitude });
+            },
+            () => {
+                setLocating(false);
+                setMessage({ text: "Could not get your location.", error: true });
+            },
             { timeout: 8000 }
         );
     };
@@ -370,7 +392,7 @@ export default function Home() {
                     >
                         <span className="text-base font-semibold text-mist-900">{Math.round(journey.summary.duration)} min</span>
                         <span className="flex-1 text-sm text-mist-700">trip found · tap to show</span>
-                        <ChevronIcon className="h-4 w-4 rotate-180 text-mist-600" />
+                        <ChevronIcon open className="h-4 w-4 text-mist-600" />
                     </button>
                 )}
             </div>
@@ -438,7 +460,7 @@ export default function Home() {
                 {showLocate && "geolocation" in navigator && (
                     <div className="absolute right-4 z-10 transition-[bottom] duration-[250ms] ease-out" style={{ bottom: sheetHeight + 12 }}>
                         <Button variant="secondary" size="icon" onClick={locateMe} aria-label="Use my location">
-                            <LocateIcon />
+                            <LocateIcon busy={locating} />
                         </Button>
                     </div>
                 )}

@@ -8,7 +8,7 @@ export const fieldClass = `${FIELD_BASE} border-mist-300 focus:border-brand-700 
 export const fieldErrorClass = `${FIELD_BASE} border-red-300 focus:border-red-500 focus:ring-red-500/20`;
 
 const BUTTON_BASE =
-    "inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 disabled:cursor-not-allowed disabled:opacity-60";
+    "group inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 enabled:active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:transform-none disabled:cursor-not-allowed disabled:opacity-60";
 
 const BUTTON_VARIANT = {
     primary: "bg-brand-700 text-white shadow-sm hover:bg-brand-800",
@@ -17,7 +17,7 @@ const BUTTON_VARIANT = {
     danger: "border border-mist-300 bg-white/80 text-red-700 shadow-sm hover:border-red-300 hover:bg-red-50",
 };
 
-const BUTTON_SIZE = { md: "px-4 py-3", sm: "px-3 py-2.5", icon: "p-3", avatar: "py-2.5 pl-1 pr-2" };
+const BUTTON_SIZE = { md: "min-h-11 px-4", sm: "min-h-10 px-3", icon: "h-11 w-11", avatar: "min-h-11 pl-1 pr-2" };
 
 export const buttonClass = (variant = "primary", size = "md") =>
     `${BUTTON_BASE} ${BUTTON_VARIANT[variant]} ${BUTTON_SIZE[size]}`;

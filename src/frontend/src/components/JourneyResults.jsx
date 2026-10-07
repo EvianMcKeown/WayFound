@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { MODE_STYLE, hasApproximate } from "../lib/journey";
 import { Button, Panel, TextLink } from "./ui";
 import ModeBadge from "./ModeBadge";
+import { BookmarkIcon } from "./icons";
 import { formatDuration, minsToClock, minsToDayClock } from "../lib/time";
 
 function Stat({ label, value }) {
@@ -33,7 +34,7 @@ function Place({ name, approx }) {
     );
 }
 
-function LegRow({ leg, last }) {
+function LegRow({ leg, last, index = 0 }) {
     const style = MODE_STYLE[leg.kind];
     const title = leg.kind === "walk" ? `Walk ${leg.minutes} min` : `${style.label} ${leg.routeName}`;
     const detail =
@@ -42,12 +43,16 @@ function LegRow({ leg, last }) {
             : `${leg.fromName} → ${leg.toName}${leg.stops != null ? ` · ${leg.stops} stops` : ""}`;
 
     return (
-        <li className="relative flex gap-3 pb-4">
+        <li className="ico-rise relative flex gap-3 pb-4" style={{ "--i": index }}>
             {!last && (
                 <span
                     aria-hidden="true"
-                    className="absolute left-[11px] top-7 h-[calc(100%-1.75rem)] w-0"
-                    style={{ borderLeft: `2px ${leg.kind === "walk" ? "dashed" : "solid"} ${style.color}` }}
+                    className={`absolute left-[11px] top-7 h-[calc(100%-1.75rem)] w-0.5 ${leg.kind === "walk" ? "ico-march-line" : ""}`}
+                    style={
+                        leg.kind === "walk"
+                            ? { backgroundImage: `repeating-linear-gradient(to bottom, ${style.color} 0 6px, transparent 6px 12px)` }
+                            : { background: style.color }
+                    }
                 />
             )}
             <ModeBadge kind={leg.kind} className="relative h-6 w-6" />
@@ -125,7 +130,7 @@ export function TripLegs({ journey }) {
         <>
             <ol>
                 {legs.map((leg, i) => (
-                    <LegRow key={i} leg={leg} last={i === legs.length - 1} />
+                    <LegRow key={i} leg={leg} last={i === legs.length - 1} index={i} />
                 ))}
             </ol>
             {hasApproximate(legs) && (
@@ -142,7 +147,8 @@ export function TripSave({ onSave, saving, saved, signedIn, className = "" }) {
     return (
         <div className={className}>
             <Button variant="secondary" onClick={onSave} disabled={saving || saved} className="w-full">
-                {saved ? "Saved ✓" : saving ? "Saving…" : signedIn ? "Save this route" : "Sign in to save this route"}
+                <BookmarkIcon on={saved} className="h-4 w-4" />
+                {saved ? "Saved" : saving ? "Saving…" : signedIn ? "Save this route" : "Sign in to save this route"}
             </Button>
             {saved && (
                 <p className="mt-2 text-center text-xs text-mist-700">

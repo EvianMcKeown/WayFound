@@ -11,9 +11,20 @@ const CAPE_TOWN = [18.4241, -33.9249];
 
 function pin(color) {
     const el = document.createElement("div");
-    el.style.cssText = `width:16px;height:16px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)`;
+    const dot = document.createElement("div");
+    dot.className = "map-pin";
+    dot.style.cssText = `width:16px;height:16px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)`;
+    el.appendChild(dot);
     return el;
 }
+
+const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const FADE_LAYERS = [
+    ["legs-casing", "line-opacity"],
+    ...Object.keys(MODE_STYLE).map((kind) => [`legs-${kind}`, "line-opacity"]),
+    ["stops-dot", "circle-opacity"],
+    ["stops-dot", "circle-stroke-opacity"],
+];
 
 function circle([lon, lat], metres, steps = 40) {
     const dLat = metres / 111320;
@@ -158,6 +169,20 @@ export default function MapView({
         addPin(origin, "#1a1f1a");
         addPin(destination, "#108418");
         legs.forEach((l) => (l.shape ?? [l.from, l.to]).forEach((pt) => bounds.extend(pt)));
+
+        if (legs.length && !prefersReducedMotion()) {
+            FADE_LAYERS.forEach(([id, prop]) => {
+                map.setPaintProperty(id, `${prop}-transition`, { duration: 0, delay: 0 });
+                map.setPaintProperty(id, prop, 0);
+            });
+            setTimeout(() => {
+                if (mapRef.current !== map) return;
+                FADE_LAYERS.forEach(([id, prop]) => {
+                    map.setPaintProperty(id, `${prop}-transition`, { duration: 700, delay: 0 });
+                    map.setPaintProperty(id, prop, 1);
+                });
+            }, 60);
+        }
 
         boundsRef.current = bounds.isEmpty() ? null : bounds;
         fit(map.loaded() ? 600 : 0);

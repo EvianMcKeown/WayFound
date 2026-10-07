@@ -111,6 +111,27 @@ const SHOTS = [
         ready: mapIdle,
     },
     {
+        name: "planner-icon-motion",
+        path: JOURNEY,
+        only: "desktop",
+        setup: async (p) => {
+            await sleep(800);
+            const turn = () => p.eval(`getComputedStyle(document.querySelector('button[aria-label="Swap start and destination"] svg')).transform`);
+            const before = await turn();
+            await p.eval(`document.querySelector('button[aria-label="Swap start and destination"]').click()`);
+            await sleep(700);
+            const after = await turn();
+            console.log(`swap icon transform: ${before} -> ${after}`);
+            if (before === after) throw new Error("swap icon did not turn");
+            const radius = await p.eval(`(() => { const svg = document.querySelector('button[aria-label="Use my location"] svg'); svg.dataset.busy = 'true'; return new Promise((res) => setTimeout(() => res(getComputedStyle(svg.querySelector('.ico-locate-ring')).r + ' ' + getComputedStyle(svg.querySelector('.ico-locate-ring')).opacity), 500)); })()`);
+            console.log("locate ring while busy (r, opacity):", radius);
+            if (parseFloat(radius) === 7 || parseFloat(radius.split(" ")[1]) === 0) throw new Error("locate ring is not pulsing");
+            const pressed = await p.eval(`getComputedStyle(document.querySelector('button[type=submit]')).transitionProperty`);
+            if (!pressed.includes("transform")) throw new Error("buttons do not animate transform");
+        },
+        ready: mapIdle,
+    },
+    {
         name: "planner-edit",
         path: JOURNEY,
         only: "mobile",

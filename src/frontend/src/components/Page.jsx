@@ -6,7 +6,7 @@ const footerLink = "font-medium text-mist-700 hover:text-brand-700";
 
 const WIDTH = { sm: "max-w-md", md: "max-w-2xl", lg: "max-w-3xl" };
 
-export default function Page({ width = "md", centered = false, brand = false, children }) {
+export default function Page({ width = "md", centered = false, children }) {
     return (
         <AppShell>
             <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto bg-gradient-to-br from-brand-50 via-white to-mist-100">
@@ -15,7 +15,6 @@ export default function Page({ width = "md", centered = false, brand = false, ch
                 <div aria-hidden="true" className="pointer-events-none absolute -right-20 bottom-24 h-80 w-80 rounded-full bg-brand-300/30 blur-3xl" />
 
                 <div className={`relative mx-auto flex w-full flex-1 flex-col gap-4 p-4 sm:p-6 ${WIDTH[width]} ${centered ? "justify-center" : ""}`}>
-                    {brand && <Brand size="md" stacked className="mb-1 self-center" />}
                     {children}
                 </div>
 

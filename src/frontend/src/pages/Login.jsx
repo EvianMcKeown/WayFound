@@ -32,7 +32,7 @@ export default function Login() {
     };
 
     return (
-        <Page width="sm" centered brand>
+        <Page width="sm" centered>
             <Panel as="form" onSubmit={handleLogin} className="flex flex-col gap-4 p-6">
                 <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
 

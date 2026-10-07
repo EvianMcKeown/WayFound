@@ -14,6 +14,7 @@ export default function PlaceSearch({ label, value, onChange, placeholder, allow
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState(-1);
     const [status, setStatus] = useState("idle");
+    const [locating, setLocating] = useState(false);
     const justSelected = useRef(false);
 
     useEffect(() => {
@@ -77,9 +78,16 @@ export default function PlaceSearch({ label, value, onChange, placeholder, allow
     };
 
     const locate = () => {
+        setLocating(true);
         navigator.geolocation?.getCurrentPosition(
-            (pos) => choose({ label: "My location", lat: pos.coords.latitude, lon: pos.coords.longitude }),
-            () => setStatus("error"),
+            (pos) => {
+                setLocating(false);
+                choose({ label: "My location", lat: pos.coords.latitude, lon: pos.coords.longitude });
+            },
+            () => {
+                setLocating(false);
+                setStatus("error");
+            },
             { timeout: 8000 }
         );
     };
@@ -107,7 +115,7 @@ export default function PlaceSearch({ label, value, onChange, placeholder, allow
                     onFocus={() => options.length && setOpen(true)}
                     onBlur={() => setTimeout(() => setOpen(false), 120)}
                     onKeyDown={onKeyDown}
-                    className={fieldClass}
+                    className={`${fieldClass} h-11`}
                 />
                 {allowLocate && "geolocation" in navigator && (
                     <Button
@@ -118,7 +126,7 @@ export default function PlaceSearch({ label, value, onChange, placeholder, allow
                         aria-label="Use my location"
                         className="shrink-0"
                     >
-                        <LocateIcon />
+                        <LocateIcon busy={locating} />
                     </Button>
                 )}
                 {trailing}

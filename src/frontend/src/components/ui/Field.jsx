@@ -23,7 +23,7 @@ export default function Field({
                 id={id}
                 aria-invalid={error ? true : undefined}
                 aria-describedby={error ? `${id}-error` : undefined}
-                className={`${error ? fieldErrorClass : fieldClass} ${controlClassName}`.trim()}
+                className={`${error ? fieldErrorClass : fieldClass} ${as === "textarea" ? "" : "h-11"} ${controlClassName}`.trim()}
                 {...props}
             >
                 {children}

@@ -5,6 +5,7 @@ import { clearSession, useSession } from "../lib/auth";
 import { surfaceClass } from "../lib/ui";
 import { Button, Panel } from "./ui";
 import Brand from "./Brand";
+import { ChevronIcon, MenuIcon } from "./icons";
 
 const NAV = [
     { to: "/", label: "Plan", end: true },
@@ -53,9 +54,7 @@ function AccountMenu({ user, onSignOut }) {
                     {user.username.charAt(0)}
                 </span>
                 <span className="hidden max-w-32 truncate sm:block">{user.username}</span>
-                <svg viewBox="0 0 20 20" className="h-4 w-4 text-mist-500" fill="currentColor" aria-hidden="true">
-                    <path d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z" />
-                </svg>
+                <ChevronIcon open={open} className="h-4 w-4 text-mist-500" />
             </Button>
 
             {open && (
@@ -141,9 +140,7 @@ export default function AppShell({ overlayHeader = false, children }) {
                                 aria-expanded={mobileOpen}
                                 aria-controls="mobile-nav"
                             >
-                                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                                    {mobileOpen ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
-                                </svg>
+                                <MenuIcon open={mobileOpen} />
                             </Button>
                         </span>
                     </div>

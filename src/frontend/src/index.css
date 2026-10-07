@@ -27,6 +27,12 @@
 
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.125rem;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
 }
 
 
@@ -57,4 +63,65 @@ body {
 
 .animate-car {
   animation: carMove 2s infinite alternate ease-in-out;
+}
+
+@keyframes ico-pulse {
+  0% { r: 5px; opacity: 0.5; }
+  100% { r: 8px; opacity: 0; }
+}
+@keyframes ico-wiggle {
+  0%, 100% { transform: rotate(0); }
+  30% { transform: rotate(-8deg); }
+  65% { transform: rotate(4deg); }
+}
+@keyframes ico-pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@keyframes ico-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ico-march-line {
+  to { background-position-y: 12px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ico-part, .ico-turn, .ico-chevron {
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform var(--duration-slow) var(--ease-out-soft), opacity var(--duration-base) ease-out;
+  }
+  .ico-chevron { transition-property: transform, rotate; transition-duration: var(--duration-base); transition-timing-function: var(--ease-out-soft); }
+
+  .group:hover .ico-swap-down { transform: translateY(2px); }
+  .group:hover .ico-swap-up { transform: translateY(-2px); }
+
+  .group:hover .ico-edit { animation: ico-wiggle 450ms var(--ease-out-soft); transform-origin: 20% 80%; transform-box: view-box; }
+
+  .group:hover .ico-search { transform: rotate(-10deg); transform-box: view-box; transform-origin: 40% 40%; }
+  .ico-search { transition: transform var(--duration-slow) var(--ease-out-soft); }
+
+  .group:hover .ico-close { transform: rotate(90deg); }
+  .group:active .ico-close { transform: rotate(90deg) scale(0.85); }
+
+  .ico-locate-dot { transition: r var(--duration-base) var(--ease-out-soft); }
+  .group:hover .ico-locate-dot { r: 3.5px; }
+  .ico-locate-ring { opacity: 0; }
+  [data-busy="true"] .ico-locate-ring { animation: ico-pulse 1400ms ease-out infinite; }
+
+  .ico-bookmark[data-on="true"] { animation: ico-pop 300ms var(--ease-out-soft); }
+
+  .ico-rise { animation: ico-rise var(--duration-slow) var(--ease-out-soft) both; animation-delay: calc(var(--i, 0) * 70ms); }
+
+  .ico-march-line { background-size: 100% 12px; animation: ico-march-line 1.2s linear infinite; }
+}
+
+@keyframes map-pin-drop {
+  from { opacity: 0; transform: translateY(-14px) scale(0.8); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .map-pin { animation: map-pin-drop 400ms var(--ease-out-soft) both; }
 }

@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import Brand from "../components/Brand";
 import Page from "../components/Page";
 import { MODE_STYLE } from "../lib/journey";
 import { Button, Panel, TextLink } from "../components/ui";
@@ -30,7 +29,14 @@ export default function About() {
     return (
         <Page width="lg">
             <Panel as="section" radius="3xl" className="flex flex-col items-center gap-5 px-6 py-10 text-center">
-                <Brand size="xl" stacked to={null} />
+                <img src="/logo.png" alt="" className="h-20 w-20 rounded-3xl bg-white shadow-md ring-1 ring-brand-100" />
+                <div className="flex flex-col items-center gap-1">
+                    <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                        <span className="text-mist-900">Way</span>
+                        <span className="text-brand-700">Found</span>
+                    </h1>
+                    <p className="text-sm font-medium text-mist-600 sm:text-base">Cape Town Journey Planner</p>
+                </div>
                 <p className="max-w-xl text-sm text-mist-700 sm:text-base">
                     Plan a trip across Cape Town’s buses and trains in one place. Choose where you’re starting and where
                     you’re going, and WayFound combines the walking, the bus and the train into one journey.

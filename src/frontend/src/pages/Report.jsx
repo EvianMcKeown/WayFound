@@ -56,7 +56,7 @@ export default function Report() {
 
     if (sent) {
         return (
-            <Page width="sm" centered brand>
+            <Page width="sm" centered>
                 <Panel className="flex flex-col gap-3 p-6 text-center">
                     <h1 className="text-xl font-semibold tracking-tight">Thanks for letting us know</h1>
                     <p className="text-sm text-mist-700">We'll look into it and correct the data where we can.</p>
@@ -67,7 +67,7 @@ export default function Report() {
     }
 
     return (
-        <Page width="sm" centered brand>
+        <Page width="sm" centered>
             <Panel as="form" onSubmit={submit} className="flex flex-col gap-4 p-6">
                 <div>
                     <h1 className="text-xl font-semibold tracking-tight">Report an issue</h1>

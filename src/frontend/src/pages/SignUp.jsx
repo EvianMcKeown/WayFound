@@ -50,7 +50,7 @@ export default function SignUp() {
     };
 
     return (
-        <Page width="sm" centered brand>
+        <Page width="sm" centered>
             <Panel as="form" onSubmit={handleSignUp} noValidate className="flex flex-col gap-4 p-6">
                 <h1 className="text-xl font-semibold tracking-tight">Create an account</h1>
                 <p className="-mt-2 text-sm text-mist-700">Save routes and keep your journey preferences.</p>

@@ -16,3 +16,6 @@ PTJP-rework-transfer.zip
 
 # local databases (created with manage.py migrate; they hold accounts and password hashes)
 *.sqlite3
+
+# screenshot tool output
+shots/
