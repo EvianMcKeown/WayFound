@@ -7,7 +7,7 @@ matching lines in storyboard.mjs yourself (each caption below is one caption(...
 
 It is a hybrid of showcase and help video: every gesture achieves something (opens the search, plans a trip,
 reveals the steps) and is never shown for its own sake, and the captions lead with the benefit. No voiceover
-or music: the captions carry it. Roughly 65 seconds. A thin green progress bar grows
+or music: the captions carry it. Roughly 80 seconds. A thin green progress bar grows
 along the bottom edge for the whole video (the video player's own controls are meant to be hidden).
 
 The video plays signed in as a demo user ("Alex"), so "Save this route" really changes to "Saved".
@@ -41,7 +41,17 @@ SCENE 2. DESKTOP: FROM TWO PLACES TO A SAVED TRIP
 
   CAPTION  "Taking it again? Save it for next time"
         - Same view. The pointer clicks Save this route; the button changes to "Saved" with a small pop of the
-          bookmark. The pointer disappears and the camera pulls back out.
+          bookmark. The tags go away.
+
+  CAPTION  "Not the best fit? Compare routes"
+        - The panel scrolls back to the top and the camera zooms on it. The pointer clicks Compare routes; the
+          other routes appear as cards (each with its duration, transfers and walking, and a label such as
+          Fastest, Fewest transfers or Least walking). The pointer clicks the second one and the map and trip
+          change to it.
+
+  CAPTION  "A line you dislike? Avoid it"
+        - The pointer clicks Avoid beside a ride. The trip is planned again without that line, and the
+          headline shows an "Avoiding 1" tag. The pointer disappears and the camera pulls back out.
 
 
 TRANSITION. A frozen frame of the laptop scene dissolves into the phone scene, with the camera easing in.

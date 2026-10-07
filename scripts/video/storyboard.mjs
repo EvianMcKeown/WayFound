@@ -98,7 +98,40 @@ export default function storyboard(api) {
             await waitFor(`[...stage.app().querySelectorAll("aside button")].some((b) => b.textContent.trim() === "Saved")`, "saved");
             await wait(1500);
             await ev("stage.clearBadges()");
+
+            await caption("Not the best fit? <b>Compare routes</b>");
+            await ev(`(() => { const a = stage.app().querySelector("aside"); a.scrollTo({ top: 0, behavior: "smooth" }); })()`);
+            await wait(900);
+            await focus(await waitRect("aside"), { pad: 40, max: 1.4, ms: 1300 });
+            await click("aside button", "Compare routes");
+            await waitRect("[role=radiogroup]");
+            await wait(2200);
+            const second = (await rectsOf("[role=radio]"))[1];
+            await cursorIn(second.x + second.w * 0.5, second.y + second.h / 2);
+            await click("[role=radio]:nth-of-type(2)");
+            await waitMap();
+            await wait(1600);
+
+            await caption("A line you dislike? <b>Avoid it</b>");
+            await ev(`stage.app().querySelector("aside button[aria-label^='Avoid MyCiTi']").scrollIntoView({ block: "center", behavior: "smooth" })`);
+            for (let last = -1, now = await ev(`stage.app().querySelector("aside").scrollTop`); now !== last; ) {
+                last = now;
+                await wait(250);
+                now = await ev(`stage.app().querySelector("aside").scrollTop`);
+            }
+            const avoidBtn = await waitRect("aside button[aria-label^='Avoid MyCiTi']");
+            await cursorIn(avoidBtn.x + avoidBtn.w * 0.5, avoidBtn.y + avoidBtn.h / 2);
+            await wait(300);
+            await pointer("aside button[aria-label^='Avoid MyCiTi']");
+            await ev("stage.press()");
+            await wait(150);
+            await ev(`stage.app().querySelector("aside button[aria-label^='Avoid MyCiTi']").click()`);
+            await ev("stage.release()");
             await hideCursor();
+            await waitFor(`(stage.app().querySelector("aside")?.innerText ?? "").includes("Avoiding")`, "the trip without that line");
+            await waitMap();
+            await ev(`(() => { const a = stage.app().querySelector("aside"); a.scrollTo({ top: 0, behavior: "smooth" }); })()`);
+            await wait(2600);
             await caption(null);
             await home(1000);
         },
