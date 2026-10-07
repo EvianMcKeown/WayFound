@@ -26,7 +26,7 @@ export default function Brand({ size = "md", stacked = false, tagline = true, to
             <span className={`flex flex-col leading-none ${stacked ? "items-center" : "pb-1"}`}>
                 <Wordmark className={s.word} />
                 {tagline && s.tag && (
-                    <span className={`font-medium text-mist-500 ${s.tag} ${size === "md" ? "hidden sm:block" : ""}`}>
+                    <span className={`font-medium text-mist-600 ${s.tag} ${size === "md" && !stacked ? "hidden sm:block" : ""}`}>
                         Cape Town Journey Planner
                     </span>
                 )}

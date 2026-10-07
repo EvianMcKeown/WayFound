@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { API_BASE } from "../lib/api";
 import { clearSession, useSession } from "../lib/auth";
-import { buttonClass, panelClass, surfaceClass } from "../lib/ui";
+import { surfaceClass } from "../lib/ui";
+import { Button, Panel } from "./ui";
 import Brand from "./Brand";
 
 const NAV = [
@@ -10,12 +11,11 @@ const NAV = [
     { to: "/savedroutes", label: "Saved routes", account: true },
     { to: "/faq", label: "Help" },
     { to: "/about", label: "About" },
-    { to: "/report", label: "Report an issue" },
 ];
 
-const navLinkClass = ({ isActive }) =>
-    `rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 ${
-        isActive ? "bg-brand-50 text-brand-800 ring-1 ring-brand-100" : "text-mist-600 hover:bg-mist-100 hover:text-mist-900"
+const navLinkClass = ({ isActive }, tall = false) =>
+    `rounded-lg px-3 ${tall ? "py-2" : "py-1.5"} text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 ${
+        isActive ? "bg-brand-50 text-brand-800 ring-1 ring-brand-100" : "text-mist-700 hover:bg-mist-100 hover:text-mist-900"
     }`;
 
 const menuItemClass =
@@ -42,25 +42,25 @@ function AccountMenu({ user, onSignOut }) {
 
     return (
         <div ref={ref} className="relative">
-            <button
-                type="button"
+            <Button
+                variant="secondary"
+                size="avatar"
                 onClick={() => setOpen((o) => !o)}
                 aria-haspopup="menu"
                 aria-expanded={open}
-                className={buttonClass("secondary", "avatar")}
             >
                 <span className="grid h-6 w-6 place-items-center rounded-md bg-brand-700 text-xs font-semibold uppercase text-white">
                     {user.username.charAt(0)}
                 </span>
                 <span className="hidden max-w-32 truncate sm:block">{user.username}</span>
-                <svg viewBox="0 0 20 20" className="h-4 w-4 text-mist-400" fill="currentColor" aria-hidden="true">
+                <svg viewBox="0 0 20 20" className="h-4 w-4 text-mist-500" fill="currentColor" aria-hidden="true">
                     <path d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4z" />
                 </svg>
-            </button>
+            </Button>
 
             {open && (
-                <div role="menu" className={`absolute right-0 top-full z-50 mt-2 w-56 rounded-xl p-1.5 ${panelClass}`}>
-                    <p className="truncate px-3 pb-2 pt-1.5 text-xs text-mist-500">
+                <Panel tone="glass" role="menu" radius="xl" className="absolute right-0 top-full z-50 mt-2 w-56 p-1.5">
+                    <p className="truncate px-3 pb-2 pt-1.5 text-xs text-mist-600">
                         Signed in as <span className="font-medium text-mist-800">{user.username}</span>
                     </p>
                     <div className="my-1 border-t border-mist-200/70" />
@@ -69,14 +69,15 @@ function AccountMenu({ user, onSignOut }) {
                     {user.isSuperUser && (
                         <a role="menuitem" href={`${API_BASE}/admin/`} target="_blank" rel="noopener noreferrer" className={menuItemClass}>
                             Admin site
-                            <span aria-hidden="true" className="ml-auto text-mist-400">↗</span>
+                            <span aria-hidden="true" className="ml-auto text-mist-500">↗</span>
                         </a>
                     )}
+                    <Link role="menuitem" to="/report" className={menuItemClass}>Report an issue</Link>
                     <div className="my-1 border-t border-mist-200/70" />
                     <button role="menuitem" type="button" onClick={onSignOut} className={menuItemClass}>
                         Sign out
                     </button>
-                </div>
+                </Panel>
             )}
         </div>
     );
@@ -124,26 +125,26 @@ export default function AppShell({ overlayHeader = false, children }) {
                             <AccountMenu user={user} onSignOut={signOut} />
                         ) : (
                             <>
-                                <Link to="/login" className={buttonClass("ghost", "sm")}>Sign in</Link>
+                                <Button to="/login" variant="ghost" size="sm">Sign in</Button>
                                 <span className="hidden sm:block">
-                                    <Link to="/signup" className={buttonClass("primary", "sm")}>Create account</Link>
+                                    <Button to="/signup" size="sm">Create account</Button>
                                 </span>
                             </>
                         )}
 
                         <span className="lg:hidden">
-                            <button
-                                type="button"
+                            <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => setMobileOpen((o) => !o)}
                                 aria-label={mobileOpen ? "Close menu" : "Open menu"}
                                 aria-expanded={mobileOpen}
                                 aria-controls="mobile-nav"
-                                className={buttonClass("ghost", "icon")}
                             >
                                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                                     {mobileOpen ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
                                 </svg>
-                            </button>
+                            </Button>
                         </span>
                     </div>
                 </div>
@@ -156,15 +157,15 @@ export default function AppShell({ overlayHeader = false, children }) {
                                 to={item.to}
                                 end={item.end}
                                 onClick={() => setMobileOpen(false)}
-                                className={({ isActive }) => `${navLinkClass({ isActive })} py-2`}
+                                className={(state) => navLinkClass(state, true)}
                             >
                                 {item.label}
                             </NavLink>
                         ))}
                         {!user && (
-                            <Link to="/signup" className={`${buttonClass("primary")} mt-1 w-full`}>
+                            <Button to="/signup" className="mt-1 w-full">
                                 Create account
-                            </Link>
+                            </Button>
                         )}
                     </nav>
                 )}

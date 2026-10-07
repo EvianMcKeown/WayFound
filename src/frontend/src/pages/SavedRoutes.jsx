@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import Page from "../components/Page";
+import { Alert, Button, Field, Panel } from "../components/ui";
 import { apiFetch } from "../lib/api";
 import { savedRouteLink } from "../lib/plannerLink";
-import { alertClass, buttonClass, fieldClass, linkClass, panelClass } from "../lib/ui";
 
 const defaultName = (r) => `${r.start_location} → ${r.end_location}`;
 
@@ -26,50 +25,51 @@ function RouteRow({ route, onRename, onDelete }) {
     };
 
     return (
-        <li className={`flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center ${panelClass}`}>
+        <Panel as="li" className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
             {editing ? (
                 <form onSubmit={save} className="flex min-w-0 flex-1 items-center gap-2">
-                    <label htmlFor={`name-${route.id}`} className="sr-only">Route name</label>
-                    <input
+                    <Field
                         id={`name-${route.id}`}
+                        label="Route name"
+                        labelHidden
                         autoFocus
                         maxLength={100}
                         value={name}
                         placeholder={defaultName(route)}
                         onChange={(e) => setName(e.target.value)}
                         onKeyDown={(e) => e.key === "Escape" && cancel()}
-                        className={fieldClass}
+                        className="min-w-0 flex-1"
                     />
-                    <button type="submit" disabled={busy} className={buttonClass("primary", "sm")}>Save</button>
-                    <button type="button" onClick={cancel} className={buttonClass("ghost", "sm")}>Cancel</button>
+                    <Button type="submit" size="sm" disabled={busy}>Save</Button>
+                    <Button variant="ghost" size="sm" onClick={cancel}>Cancel</Button>
                 </form>
             ) : (
                 <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-mist-900">{route.name || defaultName(route)}</p>
                     {route.name && (
-                        <p className="truncate text-xs text-mist-600">{defaultName(route)}</p>
+                        <p className="truncate text-xs text-mist-700">{defaultName(route)}</p>
                     )}
-                    <p className="mt-1 text-xs text-mist-500">Saved {new Date(route.created_at).toLocaleDateString()}</p>
+                    <p className="mt-1 text-xs text-mist-600">Saved {new Date(route.created_at).toLocaleDateString()}</p>
                 </div>
             )}
 
             {!editing && (
                 <div className="flex shrink-0 gap-2">
-                    <Link to={savedRouteLink(route)} className={buttonClass("primary", "sm")}>Plan</Link>
-                    <button type="button" onClick={() => setEditing(true)} className={buttonClass("secondary", "sm")}>
+                    <Button to={savedRouteLink(route)} size="sm">Plan</Button>
+                    <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
                         Rename
-                    </button>
-                    <button
-                        type="button"
+                    </Button>
+                    <Button
+                        variant="danger"
+                        size="sm"
                         onClick={() => onDelete(route.id)}
                         aria-label={`Delete ${route.name || defaultName(route)}`}
-                        className={buttonClass("danger", "sm")}
                     >
                         Delete
-                    </button>
+                    </Button>
                 </div>
             )}
-        </li>
+        </Panel>
     );
 }
 
@@ -108,16 +108,19 @@ export default function SavedRoutes() {
         <Page width="md">
             <h1 className="text-xl font-semibold tracking-tight">Saved routes</h1>
 
-            {error && (
-                <p role="alert" className={alertClass(true)}>
-                    {error}
-                </p>
-            )}
-            {routes === null && !error && <p className="text-sm text-mist-500">Loading…</p>}
+            {error && <Alert>{error}</Alert>}
+            {routes === null && !error && <p className="text-sm text-mist-600">Loading…</p>}
             {routes?.length === 0 && (
-                <p className={`rounded-2xl p-6 text-center text-sm text-mist-600 ${panelClass}`}>
-                    No saved routes yet. <Link to="/" className={linkClass}>Plan a journey</Link> and choose “Save this route”.
-                </p>
+                <Panel className="flex flex-col items-center gap-3 px-6 py-8 text-center">
+                    <span aria-hidden="true" className="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-700">
+                        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+                            <path d="M7 4h10v16l-5-4-5 4z" />
+                        </svg>
+                    </span>
+                    <h2 className="text-lg font-semibold tracking-tight text-mist-900">No saved routes yet</h2>
+                    <p className="text-sm text-mist-700">Plan a journey and choose “Save this route” to keep it here.</p>
+                    <Button to="/">Plan a journey</Button>
+                </Panel>
             )}
 
             <ul className="flex flex-col gap-3">

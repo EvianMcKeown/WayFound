@@ -1,8 +1,12 @@
 export const MODE_STYLE = {
-    walk: { label: "Walk", color: "#647865", dash: true },
-    bus: { label: "Bus", color: "#108418", dash: false },
-    rail: { label: "Train", color: "#272f28", dash: false },
+    walk: { label: "Walk", operator: "Walking", color: "#516153", glyph: "#ffffff", dash: true },
+    myciti: { label: "Bus", operator: "MyCiTi", color: "#0a5689", glyph: "#ffffff", dash: false },
+    "golden-arrow": { label: "Bus", operator: "Golden Arrow", color: "#fa8c26", glyph: "#1a1f1a", dash: false },
+    metrorail: { label: "Train", operator: "Metrorail", color: "#00b0df", glyph: "#1a1f1a", dash: false },
 };
+
+const RIDE_KIND = { 0: "myciti", 1: "golden-arrow", 2: "metrorail" };
+export const rideKind = (mode) => RIDE_KIND[mode] ?? "myciti";
 
 const coord = (stop) => (stop ? [stop.lon, stop.lat] : null);
 
@@ -42,7 +46,7 @@ export function buildLegs(pathObjs, origin, destination) {
             const to = coord(alightStop);
             if (!from || !to) continue;
             legs.push({
-                kind: step.route?.mode === 2 ? "rail" : "bus",
+                kind: rideKind(step.route?.mode),
                 from,
                 to,
                 shape: step.shape?.length > 1 ? step.shape : null,

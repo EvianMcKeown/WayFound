@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Page from "../components/Page";
 import { apiFetch } from "../lib/api";
-import { alertClass, buttonClass, fieldClass, labelClass, panelClass } from "../lib/ui";
+import { Alert, Button, Checkbox, Field, Panel } from "../components/ui";
 
 const PROFILE_FIELDS = [
     ["username", "Username", "text"],
@@ -14,15 +14,6 @@ const PREFERENCES = [
     ["minimize_walking", "Minimise walking", "Prefer routes with short walks between stops."],
     ["minimize_stops", "Fewer transfers", "Prefer routes that change vehicle less often."],
 ];
-
-function Field({ id, label, ...props }) {
-    return (
-        <div>
-            <label htmlFor={id} className={labelClass}>{label}</label>
-            <input id={id} className={fieldClass} {...props} />
-        </div>
-    );
-}
 
 function PreferencesCard() {
     const [prefs, setPrefs] = useState(null);
@@ -47,32 +38,27 @@ function PreferencesCard() {
     };
 
     return (
-        <section aria-labelledby="prefs-heading" className={`flex flex-col gap-3 rounded-2xl p-5 ${panelClass}`}>
+        <Panel as="section" aria-labelledby="prefs-heading" className="flex flex-col gap-3 p-5">
             <div>
                 <h2 id="prefs-heading" className="text-sm font-semibold text-mist-700">Journey preferences</h2>
-                <p className="text-xs text-mist-500">The planner starts with these set. You can still change them for a single search.</p>
+                <p className="text-xs text-mist-600">The planner starts with these set. You can still change them for a single search.</p>
             </div>
-            {msg && <p role="status" className={alertClass(msg.error)}>{msg.text}</p>}
-            {prefs === null && !msg && <p className="text-sm text-mist-500">Loading…</p>}
+            {msg && <Alert tone={msg.error ? "error" : "success"} role="status">{msg.text}</Alert>}
+            {prefs === null && !msg && <p className="text-sm text-mist-600">Loading…</p>}
             {prefs && (
                 <div className="flex flex-col gap-3">
                     {PREFERENCES.map(([key, label, hint]) => (
-                        <label key={key} className="flex items-start gap-3 text-sm text-mist-800">
-                            <input
-                                type="checkbox"
-                                className="mt-0.5 h-4 w-4 accent-brand-700"
-                                checked={prefs[key]}
-                                onChange={(e) => toggle(key, e.target.checked)}
-                            />
-                            <span>
-                                <span className="font-medium">{label}</span>
-                                <span className="block text-xs text-mist-500">{hint}</span>
-                            </span>
-                        </label>
+                        <Checkbox
+                            key={key}
+                            label={label}
+                            hint={hint}
+                            checked={prefs[key]}
+                            onChange={(e) => toggle(key, e.target.checked)}
+                        />
                     ))}
                 </div>
             )}
-        </section>
+        </Panel>
     );
 }
 
@@ -129,9 +115,9 @@ export default function UserSettings() {
 
             <PreferencesCard />
 
-            <form onSubmit={handleProfileUpdate} className={`flex flex-col gap-3 rounded-2xl p-5 ${panelClass}`}>
+            <Panel as="form" onSubmit={handleProfileUpdate} className="flex flex-col gap-3 p-5">
                 <h2 className="text-sm font-semibold text-mist-700">Profile</h2>
-                {profileMsg && <p role="status" className={alertClass(profileMsg.error)}>{profileMsg.text}</p>}
+                {profileMsg && <Alert tone={profileMsg.error ? "error" : "success"} role="status">{profileMsg.text}</Alert>}
                 <div className="grid gap-3 sm:grid-cols-2">
                     {PROFILE_FIELDS.map(([key, label, type]) => (
                         <Field
@@ -144,14 +130,14 @@ export default function UserSettings() {
                         />
                     ))}
                 </div>
-                <button type="submit" disabled={busy === "profile"} className={`self-start ${buttonClass()}`}>
+                <Button type="submit" disabled={busy === "profile"} className="self-start">
                     {busy === "profile" ? "Saving…" : "Save changes"}
-                </button>
-            </form>
+                </Button>
+            </Panel>
 
-            <form onSubmit={handlePasswordChange} className={`flex flex-col gap-3 rounded-2xl p-5 ${panelClass}`}>
+            <Panel as="form" onSubmit={handlePasswordChange} className="flex flex-col gap-3 p-5">
                 <h2 className="text-sm font-semibold text-mist-700">Change password</h2>
-                {passwordMsg && <p role="status" className={alertClass(passwordMsg.error)}>{passwordMsg.text}</p>}
+                {passwordMsg && <Alert tone={passwordMsg.error ? "error" : "success"} role="status">{passwordMsg.text}</Alert>}
                 <div className="grid gap-3 sm:grid-cols-2">
                     <Field
                         id="old_password"
@@ -172,10 +158,10 @@ export default function UserSettings() {
                         onChange={(e) => setPasswords({ ...passwords, new_password: e.target.value })}
                     />
                 </div>
-                <button type="submit" disabled={busy === "password"} className={`self-start ${buttonClass()}`}>
+                <Button type="submit" disabled={busy === "password"} className="self-start">
                     {busy === "password" ? "Changing…" : "Change password"}
-                </button>
-            </form>
+                </Button>
+            </Panel>
         </Page>
     );
 }

@@ -1,5 +1,5 @@
 import Page from "../components/Page";
-import { panelClass } from "../lib/ui";
+import { Panel } from "../components/ui";
 
 const FAQS = [
     {
@@ -33,29 +33,29 @@ export default function FAQ() {
         <Page width="lg">
             <h1 className="text-xl font-semibold tracking-tight">Help and FAQs</h1>
 
-            <section aria-labelledby="video-heading" className={`rounded-2xl p-4 ${panelClass}`}>
+            <Panel as="section" aria-labelledby="video-heading" className="p-4">
                 <h2 id="video-heading" className="mb-3 text-sm font-semibold text-mist-700">Watch the help video</h2>
                 <video controls preload="metadata" className="aspect-video w-full rounded-lg bg-brand-700" aria-label="Journey plan walkthrough">
                     <source src="/vid2.mp4" type="video/mp4" />
                 </video>
-            </section>
+            </Panel>
 
-            <section aria-labelledby="faq-heading" className={`rounded-2xl p-4 ${panelClass}`}>
+            <Panel as="section" aria-labelledby="faq-heading" className="p-4">
                 <h2 id="faq-heading" className="mb-2 text-sm font-semibold text-mist-700">Frequently asked questions</h2>
                 <div className="divide-y divide-mist-200/80">
                     {FAQS.map((faq) => (
                         <details key={faq.question} className="group py-3">
                             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-mist-900">
                                 {faq.question}
-                                <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-mist-500 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2">
+                                <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-mist-600 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M6 9l6 6 6-6" />
                                 </svg>
                             </summary>
-                            <p className="mt-2 text-sm text-mist-600">{faq.answer}</p>
+                            <p className="mt-2 text-sm text-mist-700">{faq.answer}</p>
                         </details>
                     ))}
                 </div>
-            </section>
+            </Panel>
         </Page>
     );
 }

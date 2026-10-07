@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import Page from "../components/Page";
 import { apiFetch } from "../lib/api";
 import { useSession } from "../lib/auth";
-import { alertClass, buttonClass, fieldClass, labelClass, linkClass, panelClass } from "../lib/ui";
+import { Alert, Button, Field, Panel, TextLink } from "../components/ui";
 
 const CATEGORIES = [
     ["wrong_time", "Wrong time or timetable"],
@@ -57,49 +57,47 @@ export default function Report() {
     if (sent) {
         return (
             <Page width="sm" centered brand>
-                <div className={`flex flex-col gap-3 rounded-2xl p-6 text-center ${panelClass}`}>
+                <Panel className="flex flex-col gap-3 p-6 text-center">
                     <h1 className="text-xl font-semibold tracking-tight">Thanks for letting us know</h1>
-                    <p className="text-sm text-mist-600">We'll look into it and correct the data where we can.</p>
-                    <Link to="/" className={`${buttonClass()} self-center`}>Back to the planner</Link>
-                </div>
+                    <p className="text-sm text-mist-700">We'll look into it and correct the data where we can.</p>
+                    <Button to="/" className="self-center">Back to the planner</Button>
+                </Panel>
             </Page>
         );
     }
 
     return (
         <Page width="sm" centered brand>
-            <form onSubmit={submit} className={`flex flex-col gap-4 rounded-2xl p-6 ${panelClass}`}>
+            <Panel as="form" onSubmit={submit} className="flex flex-col gap-4 p-6">
                 <div>
                     <h1 className="text-xl font-semibold tracking-tight">Report an issue</h1>
-                    <p className="mt-1 text-sm text-mist-600">
+                    <p className="mt-1 text-sm text-mist-700">
                         Spotted a wrong time, a stop in the wrong place or something not working? Tell us.
                     </p>
                 </div>
 
                 {request && (
-                    <p className="rounded-lg border border-mist-200 bg-white/70 px-3 py-2 text-xs text-mist-600">
+                    <p className="rounded-lg border border-mist-200 bg-white/70 px-3 py-2 text-xs text-mist-700">
                         Your journey from <strong className="font-medium text-mist-800">{request.origin?.label}</strong> to{" "}
                         <strong className="font-medium text-mist-800">{request.destination?.label}</strong> ({request.time}) is
                         attached to this report.
                     </p>
                 )}
 
-                {error && <p role="alert" className={alertClass(true)}>{error}</p>}
+                {error && <Alert>{error}</Alert>}
+
+                <Field id="category" label="What kind of problem?" as="select" required value={form.category} onChange={set("category")}>
+                    <option value="" disabled>Choose one</option>
+                    {CATEGORIES.map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                    ))}
+                </Field>
 
                 <div>
-                    <label htmlFor="category" className={labelClass}>What kind of problem?</label>
-                    <select id="category" required value={form.category} onChange={set("category")} className={fieldClass}>
-                        <option value="" disabled>Choose one</option>
-                        {CATEGORIES.map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                        ))}
-                    </select>
-                </div>
-
-                <div>
-                    <label htmlFor="description" className={labelClass}>What happened?</label>
-                    <textarea
+                    <Field
                         id="description"
+                        label="What happened?"
+                        as="textarea"
                         required
                         minLength={10}
                         maxLength={MAX_DESCRIPTION}
@@ -107,37 +105,33 @@ export default function Report() {
                         value={form.description}
                         onChange={set("description")}
                         placeholder="e.g. The 07:40 bus from Wynberg didn't stop at Claremont."
-                        className={`${fieldClass} resize-y`}
+                        controlClassName="resize-y"
                     />
-                    <p className="mt-1 text-right text-xs text-mist-500">
+                    <p className="mt-1 text-right text-xs text-mist-600">
                         {form.description.length}/{MAX_DESCRIPTION}
                     </p>
                 </div>
 
                 {!session && (
-                    <div>
-                        <label htmlFor="contact_email" className={labelClass}>
-                            Email <span className="font-normal text-mist-400">(optional, if you'd like a reply)</span>
-                        </label>
-                        <input
-                            id="contact_email"
-                            type="email"
-                            autoComplete="email"
-                            value={form.contact_email}
-                            onChange={set("contact_email")}
-                            className={fieldClass}
-                        />
-                    </div>
+                    <Field
+                        id="contact_email"
+                        label="Email"
+                        note="(optional, if you'd like a reply)"
+                        type="email"
+                        autoComplete="email"
+                        value={form.contact_email}
+                        onChange={set("contact_email")}
+                    />
                 )}
 
-                <button type="submit" disabled={busy} className={buttonClass()}>
+                <Button type="submit" disabled={busy}>
                     {busy ? "Sending…" : "Send report"}
-                </button>
+                </Button>
 
-                <p className="text-center text-sm text-mist-600">
-                    Questions rather than a problem? See <Link to="/faq" className={linkClass}>Help</Link>.
+                <p className="text-center text-sm text-mist-700">
+                    Questions rather than a problem? See <TextLink to="/faq">Help</TextLink>.
                 </p>
-            </form>
+            </Panel>
         </Page>
     );
 }

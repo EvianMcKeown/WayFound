@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Page from "../components/Page";
 import { apiFetch } from "../lib/api";
 import { setSession } from "../lib/auth";
-import { alertClass, buttonClass, fieldClass, labelClass, linkClass, panelClass } from "../lib/ui";
+import { Alert, Button, Field, Panel, TextLink } from "../components/ui";
 
 export default function Login() {
     const navigate = useNavigate();
@@ -33,38 +33,36 @@ export default function Login() {
 
     return (
         <Page width="sm" centered brand>
-            <form onSubmit={handleLogin} className={`flex flex-col gap-4 rounded-2xl p-6 ${panelClass}`}>
+            <Panel as="form" onSubmit={handleLogin} className="flex flex-col gap-4 p-6">
                 <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
 
-                {error && <p role="alert" className={alertClass(true)}>{error}</p>}
+                {error && <Alert>{error}</Alert>}
 
                 {[
                     ["username", "Username", "username"],
                     ["password", "Password", "current-password"],
                 ].map(([name, label, autoComplete]) => (
-                    <div key={name}>
-                        <label htmlFor={name} className={labelClass}>{label}</label>
-                        <input
-                            id={name}
-                            name={name}
-                            type={name === "password" ? "password" : "text"}
-                            autoComplete={autoComplete}
-                            required
-                            value={formData[name]}
-                            onChange={handleChange}
-                            className={fieldClass}
-                        />
-                    </div>
+                    <Field
+                        key={name}
+                        id={name}
+                        name={name}
+                        label={label}
+                        type={name === "password" ? "password" : "text"}
+                        autoComplete={autoComplete}
+                        required
+                        value={formData[name]}
+                        onChange={handleChange}
+                    />
                 ))}
 
-                <button type="submit" disabled={busy} className={buttonClass()}>
+                <Button type="submit" disabled={busy}>
                     {busy ? "Signing in…" : "Sign in"}
-                </button>
+                </Button>
 
-                <p className="text-center text-sm text-mist-600">
-                    Don’t have an account? <Link to="/signup" state={location.state} className={linkClass}>Create one</Link>
+                <p className="text-center text-sm text-mist-700">
+                    Don’t have an account? <TextLink to="/signup" state={location.state}>Create one</TextLink>
                 </p>
-            </form>
+            </Panel>
         </Page>
     );
 }

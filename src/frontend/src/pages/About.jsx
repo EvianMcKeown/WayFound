@@ -2,12 +2,12 @@ import { Link } from "react-router-dom";
 import Brand from "../components/Brand";
 import Page from "../components/Page";
 import { MODE_STYLE } from "../lib/journey";
-import { buttonClass, linkClass, panelClass } from "../lib/ui";
+import { Button, Panel, TextLink } from "../components/ui";
 
 const OPERATORS = [
-    ["MyCiTi", "City of Cape Town bus rapid transit", MODE_STYLE.bus.color],
-    ["Golden Arrow", "Golden Arrow Bus Services", MODE_STYLE.bus.color],
-    ["Metrorail", "PRASA commuter rail", MODE_STYLE.rail.color],
+    ["MyCiTi", "City of Cape Town bus rapid transit", MODE_STYLE.myciti.color],
+    ["Golden Arrow", "Golden Arrow Bus Services", MODE_STYLE["golden-arrow"].color],
+    ["Metrorail", "PRASA commuter rail", MODE_STYLE.metrorail.color],
 ];
 
 const SOURCES = [
@@ -19,27 +19,27 @@ const SOURCES = [
 
 function Card({ title, children }) {
     return (
-        <section className={`rounded-2xl p-5 ${panelClass}`}>
+        <Panel as="section" className="p-5">
             <h2 className="mb-2 text-sm font-semibold text-mist-800">{title}</h2>
             {children}
-        </section>
+        </Panel>
     );
 }
 
 export default function About() {
     return (
         <Page width="lg">
-            <section className={`flex flex-col items-center gap-5 rounded-3xl px-6 py-10 text-center ${panelClass}`}>
+            <Panel as="section" radius="3xl" className="flex flex-col items-center gap-5 px-6 py-10 text-center">
                 <Brand size="xl" stacked to={null} />
                 <p className="max-w-xl text-sm text-mist-700 sm:text-base">
                     Plan a trip across Cape Town’s buses and trains in one place. Choose where you’re starting and where
                     you’re going, and WayFound combines the walking, the bus and the train into one journey.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2">
-                    <Link to="/" className={buttonClass()}>Plan a journey</Link>
-                    <Link to="/faq" className={buttonClass("secondary")}>How it works</Link>
+                    <Button to="/">Plan a journey</Button>
+                    <Button to="/faq" variant="secondary">How it works</Button>
                 </div>
-            </section>
+            </Panel>
 
             <Card title="Services covered">
                 <ul className="grid gap-3 sm:grid-cols-3">
@@ -48,7 +48,7 @@ export default function About() {
                             <span aria-hidden="true" className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: color }} />
                             <span>
                                 <span className="block text-sm font-medium text-mist-900">{name}</span>
-                                <span className="block text-xs text-mist-600">{desc}</span>
+                                <span className="block text-xs text-mist-700">{desc}</span>
                             </span>
                         </li>
                     ))}
@@ -70,7 +70,7 @@ export default function About() {
                     {SOURCES.map(([term, desc]) => (
                         <div key={term} className="contents">
                             <dt className="font-medium text-mist-800">{term}</dt>
-                            <dd className="text-mist-600">{desc}</dd>
+                            <dd className="text-mist-700">{desc}</dd>
                         </div>
                     ))}
                 </dl>
@@ -85,7 +85,7 @@ export default function About() {
             <Card title="Who built it">
                 <p className="text-sm text-mist-700">
                     WayFound was built as a CSC3003S capstone project by Evian McKeown, Shaylen Naidoo and Benji Joss.
-                    Questions or ideas? Email <a href="mailto:PathPilot@gmail.com" className={linkClass}>PathPilot@gmail.com</a>.
+                    Questions or ideas? Email <TextLink href="mailto:PathPilot@gmail.com">PathPilot@gmail.com</TextLink>.
                 </p>
             </Card>
         </Page>

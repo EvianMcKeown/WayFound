@@ -94,19 +94,21 @@ export default function MapView({
     areaRadius = DEFAULT_AREA_RADIUS_M,
     insetLeft = 0,
     insetTop = 0,
+    insetBottom = 0,
 }) {
     const containerRef = useRef(null);
     const mapRef = useRef(null);
     const markersRef = useRef([]);
     const readyRef = useRef(false);
-    const propsRef = useRef({ origin, destination, legs, areaRadius, insetLeft, insetTop });
-    propsRef.current = { origin, destination, legs, areaRadius, insetLeft, insetTop };
+    const boundsRef = useRef(null);
+    const propsRef = useRef({ origin, destination, legs, areaRadius, insetLeft, insetTop, insetBottom });
+    propsRef.current = { origin, destination, legs, areaRadius, insetLeft, insetTop, insetBottom };
 
     const applyInsets = () => {
         const map = mapRef.current;
         if (!map) return;
-        const { insetLeft, insetTop } = propsRef.current;
-        map.setPadding({ left: insetLeft, top: insetTop, right: 0, bottom: 0 });
+        const { insetLeft, insetTop, insetBottom } = propsRef.current;
+        map.setPadding({ left: insetLeft, top: insetTop, right: 0, bottom: insetBottom });
         const topRight = containerRef.current?.querySelector(".maplibregl-ctrl-top-right");
         if (topRight) topRight.style.top = `${insetTop}px`;
     };
@@ -153,13 +155,18 @@ export default function MapView({
             );
             bounds.extend([place.lon, place.lat]);
         };
-        addPin(origin, "#272f28");
+        addPin(origin, "#1a1f1a");
         addPin(destination, "#108418");
         legs.forEach((l) => (l.shape ?? [l.from, l.to]).forEach((pt) => bounds.extend(pt)));
 
-        if (!bounds.isEmpty()) {
-            map.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: map.loaded() ? 600 : 0 });
-        }
+        boundsRef.current = bounds.isEmpty() ? null : bounds;
+        fit(map.loaded() ? 600 : 0);
+    };
+
+    const fit = (duration) => {
+        const map = mapRef.current;
+        if (!map || !readyRef.current || !boundsRef.current) return;
+        map.fitBounds(boundsRef.current, { padding: 48, maxZoom: 15, duration });
     };
 
     useEffect(() => {
@@ -213,9 +220,13 @@ export default function MapView({
             map?.remove();
             mapRef.current = null;
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- creates the map once; draw/applyInsets read the latest props through propsRef
     }, []);
 
-    useEffect(applyInsets, [insetLeft, insetTop]);
+    useEffect(() => {
+        applyInsets();
+        fit(300);
+    }, [insetLeft, insetTop, insetBottom]);
 
     useEffect(draw, [origin, destination, legs]);
 

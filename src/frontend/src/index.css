@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
   --color-brand-50: #effaf0;
   --color-brand-100: #dff5e0;
@@ -20,6 +20,13 @@
   --color-mist-700: #3c483d;
   --color-mist-800: #272f28;
   --color-mist-900: #1a1f1a;
+
+  --color-myciti: #0a5689;
+  --color-golden-arrow: #fa8c26;
+  --color-metrorail: #00b0df;
+
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
 }
 
 

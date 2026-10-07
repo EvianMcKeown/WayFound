@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import AppShell, { HEADER_HEIGHT_PX } from "../components/AppShell";
-import JourneyResults from "../components/JourneyResults";
+import BottomSheet from "../components/BottomSheet";
+import JourneyResults, { NoRouteCard, TripHeadline, TripLegs, TripModes, TripReport, TripSave, TripStats } from "../components/JourneyResults";
 import MapView from "../components/MapView";
 import PlaceSearch from "../components/PlaceSearch";
 import { apiFetch } from "../lib/api";
@@ -9,18 +10,15 @@ import { useSession } from "../lib/auth";
 import { buildLegs, summarise } from "../lib/journey";
 import { readPlannerLink } from "../lib/plannerLink";
 import { DAYS, nowAsPlannerInput } from "../lib/time";
-import {
-    alertClass,
-    buttonClass,
-    fieldClass,
-    labelClass,
-    panelClass,
-    segmentClass,
-    segmentGroupClass,
-} from "../lib/ui";
+import { Alert, Button, Checkbox, Field, Panel, Segmented } from "../components/ui";
+import { ChevronIcon, CloseIcon, EditIcon, LocateIcon, SearchIcon, SwapIcon } from "../components/icons";
 
 const OVERLAY_QUERY = "(min-width: 1024px)";
 const PANEL_WIDTH_PX = 384;
+const ALGORITHMS = [
+    { label: "RAPTOR", value: false },
+    { label: "Dijkstra", value: true },
+];
 
 function useMediaQuery(query) {
     const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
@@ -31,6 +29,75 @@ function useMediaQuery(query) {
         return () => mq.removeEventListener("change", onChange);
     }, [query]);
     return matches;
+}
+
+function SearchForm({ title, onClose, origin, destination, setOrigin, setDestination, swap, day, time, setWhen, options, planning, onSubmit }) {
+    const suffix = title ? "-sheet" : "";
+    return (
+        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+            {title && (
+                <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold tracking-tight text-mist-900">{title}</h2>
+                    <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close search">
+                        <CloseIcon />
+                    </Button>
+                </div>
+            )}
+            <PlaceSearch label="From" placeholder="Address or place" value={origin} onChange={setOrigin} allowLocate />
+            <PlaceSearch
+                label="To"
+                placeholder="Address or place"
+                value={destination}
+                onChange={setDestination}
+                trailing={
+                    <Button variant="secondary" size="icon" onClick={swap} aria-label="Swap start and destination" className="shrink-0">
+                        <SwapIcon />
+                    </Button>
+                }
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+                <Field id={`day${suffix}`} label="Day" as="select" value={day} onChange={(e) => setWhen((w) => ({ ...w, day: Number(e.target.value) }))}>
+                    {DAYS.map((d, i) => (
+                        <option key={d} value={i}>{d}</option>
+                    ))}
+                </Field>
+                <Field id={`time${suffix}`} label="Depart at" type="time" required value={time} onChange={(e) => setWhen((w) => ({ ...w, time: e.target.value }))} />
+            </div>
+
+            <details className="group">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 py-1 text-sm font-medium text-mist-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 [&::-webkit-details-marker]:hidden">
+                    Options
+                    <ChevronIcon className="h-4 w-4 text-mist-600 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="mt-3 flex flex-col gap-2 text-sm text-mist-700">
+                    <Checkbox label="Minimise walking" checked={options.minimizeWalking} onChange={options.onWalking} />
+                    <Checkbox label="Fewer transfers" checked={options.minimizeStops} onChange={options.onStops} />
+                    <Segmented legend="Algorithm" className="mt-1" options={ALGORITHMS} value={options.useDijkstra} onChange={options.setUseDijkstra} />
+                </div>
+            </details>
+
+            <Button type="submit" disabled={planning}>
+                {planning ? "Finding routes…" : "Find route"}
+            </Button>
+        </form>
+    );
+}
+
+function SearchSummary({ origin, destination, day, time, onEdit }) {
+    return (
+        <div className="flex items-center gap-2 px-4 pb-1">
+            <button type="button" onClick={onEdit} className="min-w-0 flex-1 rounded-lg py-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40">
+                <span className="block truncate text-sm font-medium text-mist-900">
+                    {origin?.label ?? "Start"} → {destination?.label ?? "Destination"}
+                </span>
+                <span className="block text-xs text-mist-700">{DAYS[day]} · depart {time}</span>
+            </button>
+            <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Change journey">
+                <EditIcon />
+            </Button>
+        </div>
+    );
 }
 
 export default function Home() {
@@ -54,6 +121,11 @@ export default function Home() {
     const planCtrl = useRef(null);
     const overlay = useMediaQuery(OVERLAY_QUERY);
 
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const [tripExpanded, setTripExpanded] = useState(false);
+    const [sheetHeight, setSheetHeight] = useState(0);
+
     const legs = useMemo(() => journey?.legs ?? [], [journey]);
 
     const plan = async (from, to) => {
@@ -76,6 +148,9 @@ export default function Home() {
 
         setPlanning(true);
         setMessage(null);
+        setEditing(false);
+        setSearchOpen(false);
+        setTripExpanded(false);
         try {
             const data = await apiFetch("/api/plan/", {
                 method: "POST",
@@ -132,6 +207,16 @@ export default function Home() {
         setOrigin(destination);
         setDestination(origin);
         setJourney(null);
+        setEditing(false);
+        setSearchOpen(true);
+    };
+
+    const locateMe = () => {
+        navigator.geolocation?.getCurrentPosition(
+            (pos) => setOrigin({ label: "My location", lat: pos.coords.latitude, lon: pos.coords.longitude }),
+            () => setMessage({ text: "Could not get your location.", error: true }),
+            { timeout: 8000 }
+        );
     };
 
     useEffect(() => {
@@ -182,139 +267,190 @@ export default function Home() {
         }
     };
 
-    const handledDeepLink = useRef(false);
     useEffect(() => {
         const link = readPlannerLink(params);
-        if (!link || handledDeepLink.current) return;
-        handledDeepLink.current = true;
+        if (!link) return;
+        let cancelled = false;
         if (link.places) {
             const [a, b] = link.places;
             setOrigin(a);
             setDestination(b);
             plan(a, b);
-            return;
+        } else {
+            (async () => {
+                try {
+                    const top = async (q) => (await apiFetch(`/api/geocode/?q=${encodeURIComponent(q)}`))[0];
+                    const [a, b] = await Promise.all(link.text.map(top));
+                    if (cancelled) return;
+                    if (!a || !b) throw new Error("Could not find one of the saved locations.");
+                    setOrigin(a);
+                    setDestination(b);
+                    plan(a, b);
+                } catch (err) {
+                    if (!cancelled) setMessage({ text: err.message, error: true });
+                }
+            })();
         }
-        (async () => {
-            try {
-                const top = async (q) => (await apiFetch(`/api/geocode/?q=${encodeURIComponent(q)}`))[0];
-                const [a, b] = await Promise.all(link.text.map(top));
-                if (!a || !b) throw new Error("Could not find one of the saved locations.");
-                setOrigin(a);
-                setDestination(b);
-                plan(a, b);
-            } catch (err) {
-                setMessage({ text: err.message, error: true });
-            }
-        })();
+        return () => {
+            cancelled = true;
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => () => planCtrl.current?.abort(), []);
 
-    return (
-        <AppShell overlayHeader>
-            <div className="relative flex min-h-0 flex-1 flex-col">
-                <aside className="flex w-full shrink-0 flex-col gap-4 overflow-y-auto bg-mist-50 p-4 lg:absolute lg:left-0 lg:top-16 lg:z-10 lg:max-h-[calc(100%-4rem)] lg:w-[24rem] lg:bg-transparent lg:[direction:rtl] lg:[&>*]:[direction:ltr]">
-                    <form onSubmit={onSubmit} className={`pointer-events-auto flex flex-col gap-3 rounded-2xl p-4 ${panelClass}`}>
-                        <PlaceSearch label="From" placeholder="Address or place" value={origin} onChange={setOrigin} allowLocate />
-                        <div className="-my-1 flex justify-center">
-                            <button
-                                type="button"
-                                onClick={swap}
-                                aria-label="Swap start and destination"
-                                className={buttonClass("secondary", "icon")}
-                            >
-                                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3" />
-                                </svg>
-                            </button>
-                        </div>
-                        <PlaceSearch label="To" placeholder="Address or place" value={destination} onChange={setDestination} />
+    const searchProps = {
+        origin, destination, setOrigin, setDestination, swap, day, time, setWhen, planning, onSubmit,
+        options: {
+            minimizeWalking,
+            minimizeStops,
+            useDijkstra,
+            setUseDijkstra,
+            onWalking: setOption(setMinimizeWalking),
+            onStops: setOption(setMinimizeStops),
+        },
+    };
+    const alert = message && (
+        <Alert tone={message.error ? "error" : "success"} role="status" className="pointer-events-auto">
+            {message.text}
+        </Alert>
+    );
 
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label htmlFor="day" className={labelClass}>Day</label>
-                                <select id="day" className={fieldClass} value={day} onChange={(e) => setWhen((w) => ({ ...w, day: Number(e.target.value) }))}>
-                                    {DAYS.map((d, i) => (
-                                        <option key={d} value={i}>{d}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label htmlFor="time" className={labelClass}>Depart at</label>
-                                <input id="time" type="time" required className={fieldClass} value={time} onChange={(e) => setWhen((w) => ({ ...w, time: e.target.value }))} />
-                            </div>
-                        </div>
-
-                        <details className="group rounded-lg border border-mist-300/70 px-3 py-2">
-                            <summary className="cursor-pointer text-sm font-medium text-mist-700">Options</summary>
-                            <div className="mt-3 flex flex-col gap-2 text-sm text-mist-700">
-                                <label className="flex items-center gap-2">
-                                    <input type="checkbox" className="accent-brand-700" checked={minimizeWalking} onChange={setOption(setMinimizeWalking)} />
-                                    Minimise walking
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <input type="checkbox" className="accent-brand-700" checked={minimizeStops} onChange={setOption(setMinimizeStops)} />
-                                    Fewer transfers
-                                </label>
-                                <fieldset className="mt-1">
-                                    <legend className="mb-1 text-xs font-medium text-mist-600">Algorithm</legend>
-                                    <div className={segmentGroupClass}>
-                                        {[["RAPTOR", false], ["Dijkstra", true]].map(([name, value]) => (
-                                            <button
-                                                key={name}
-                                                type="button"
-                                                aria-pressed={useDijkstra === value}
-                                                onClick={() => setUseDijkstra(value)}
-                                                className={segmentClass(useDijkstra === value)}
-                                            >
-                                                {name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </fieldset>
-                            </div>
-                        </details>
-
-                        <button
-                            type="submit"
-                            disabled={planning}
-                            className={buttonClass()}
-                        >
-                            {planning ? "Finding routes…" : "Find route"}
-                        </button>
-                    </form>
-
-                    {message && (
-                        <p
-                            role="status"
-                            className={`pointer-events-auto ${alertClass(message.error)}`}
-                        >
-                            {message.text}
-                        </p>
-                    )}
-
-                    {journey && (
-                        <JourneyResults
-                            journey={journey}
-                            onSave={save}
-                            saving={saving}
-                            saved={savedId != null}
-                            signedIn={Boolean(session)}
+    if (overlay) {
+        return (
+            <AppShell overlayHeader>
+                <div className="relative flex min-h-0 flex-1 flex-col">
+                    <aside className="absolute left-0 top-16 z-10 flex max-h-[calc(100%-4rem)] w-[24rem] shrink-0 flex-col gap-4 overflow-y-auto bg-transparent p-4 [direction:rtl] [&>*]:[direction:ltr]">
+                        <Panel tone="glass" className="pointer-events-auto p-4">
+                            <SearchForm {...searchProps} />
+                        </Panel>
+                        {alert}
+                        {journey && (
+                            <JourneyResults journey={journey} onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} />
+                        )}
+                    </aside>
+                    <div className="absolute inset-0">
+                        <MapView
+                            origin={origin}
+                            destination={destination}
+                            legs={legs}
+                            areaRadius={journey?.areaRadius}
+                            insetLeft={PANEL_WIDTH_PX}
+                            insetTop={HEADER_HEIGHT_PX}
                         />
-                    )}
-                </aside>
+                    </div>
+                </div>
+            </AppShell>
+        );
+    }
 
-                <div className="min-h-[50vh] flex-1 lg:absolute lg:inset-0 lg:min-h-0">
+    const hasTrip = journey != null;
+    const tripOk = journey?.status === "ok";
+    const showForm = hasTrip ? editing : searchOpen;
+    const summary = <SearchSummary origin={origin} destination={destination} day={day} time={time} onEdit={() => setEditing(true)} />;
+
+    let pinned = null;
+    let peek;
+    let more = null;
+    if (showForm) {
+        peek = (
+            <div className="flex flex-col gap-3 px-4 pb-6 pt-1">
+                <SearchForm
+                    {...searchProps}
+                    title={hasTrip ? "Change journey" : "Plan a journey"}
+                    onClose={() => (hasTrip ? setEditing(false) : setSearchOpen(false))}
+                />
+                {alert}
+                {tripOk && (
+                    <button
+                        type="button"
+                        onClick={() => setEditing(false)}
+                        aria-label="Show the trip again"
+                        className="flex items-center gap-2 rounded-lg bg-mist-100 px-3 py-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
+                    >
+                        <span className="text-base font-semibold text-mist-900">{Math.round(journey.summary.duration)} min</span>
+                        <span className="flex-1 text-sm text-mist-700">trip found · tap to show</span>
+                        <ChevronIcon className="h-4 w-4 rotate-180 text-mist-600" />
+                    </button>
+                )}
+            </div>
+        );
+    } else if (!hasTrip) {
+        peek = (
+            <div className="flex flex-col gap-3 px-4 pb-6 pt-1">
+                {alert}
+                <button
+                    type="button"
+                    onClick={() => setSearchOpen(true)}
+                    className="flex items-center gap-2 rounded-xl border border-mist-300 bg-white px-3 py-3 text-left text-base text-mist-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
+                >
+                    <SearchIcon className="h-5 w-5 text-mist-700" />
+                    Where to?
+                </button>
+            </div>
+        );
+    } else if (!tripOk) {
+        pinned = summary;
+        peek = (
+            <div className="flex flex-col gap-3 px-4 pb-6">
+                {alert}
+                <NoRouteCard journey={journey} />
+            </div>
+        );
+    } else {
+        pinned = summary;
+        peek = (
+            <div className="flex flex-col gap-3 px-4 pb-6">
+                {alert}
+                <TripHeadline journey={journey} />
+                <TripModes journey={journey} />
+                <div className="flex gap-2">
+                    <TripSave onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} className="flex-1" />
+                    <Button onClick={() => setTripExpanded((x) => !x)} aria-expanded={tripExpanded}>
+                        {tripExpanded ? "Less" : "Steps"}
+                    </Button>
+                </div>
+            </div>
+        );
+        more = (
+            <div className="flex flex-col gap-3 px-4 pb-6">
+                <TripStats journey={journey} />
+                <TripLegs journey={journey} />
+                <TripReport journey={journey} />
+            </div>
+        );
+    }
+
+    const showLocate = !showForm && !tripExpanded;
+
+    return (
+        <AppShell>
+            <div className="relative min-h-0 flex-1 overflow-hidden">
+                <div className="absolute inset-0">
                     <MapView
                         origin={origin}
                         destination={destination}
                         legs={legs}
                         areaRadius={journey?.areaRadius}
-                        insetLeft={overlay ? PANEL_WIDTH_PX : 0}
-                        insetTop={overlay ? HEADER_HEIGHT_PX : 0}
+                        insetBottom={Math.min(sheetHeight, 560)}
                     />
                 </div>
+                {showLocate && "geolocation" in navigator && (
+                    <div className="absolute right-4 z-10 transition-[bottom] duration-[250ms] ease-out" style={{ bottom: sheetHeight + 12 }}>
+                        <Button variant="secondary" size="icon" onClick={locateMe} aria-label="Use my location">
+                            <LocateIcon />
+                        </Button>
+                    </div>
+                )}
+                <BottomSheet
+                    label="Journey planner"
+                    expanded={more != null && tripExpanded}
+                    onExpandedChange={setTripExpanded}
+                    onHeightChange={setSheetHeight}
+                    pinned={pinned}
+                    peek={peek}
+                    more={more}
+                />
             </div>
         </AppShell>
     );

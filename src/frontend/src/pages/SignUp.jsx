@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Page from "../components/Page";
 import { apiFetch } from "../lib/api";
 import { setSession } from "../lib/auth";
-import { alertClass, buttonClass, fieldClass, labelClass, linkClass, panelClass } from "../lib/ui";
+import { Alert, Button, Field, Panel, TextLink } from "../components/ui";
 
 const FIELDS = [
     ["first_name", "First name", "text", "given-name", false, true],
@@ -51,47 +51,40 @@ export default function SignUp() {
 
     return (
         <Page width="sm" centered brand>
-            <form onSubmit={handleSignUp} noValidate className={`flex flex-col gap-4 rounded-2xl p-6 ${panelClass}`}>
+            <Panel as="form" onSubmit={handleSignUp} noValidate className="flex flex-col gap-4 p-6">
                 <h1 className="text-xl font-semibold tracking-tight">Create an account</h1>
-                <p className="-mt-2 text-sm text-mist-600">Save routes and keep your journey preferences.</p>
+                <p className="-mt-2 text-sm text-mist-700">Save routes and keep your journey preferences.</p>
 
-                {error && <p role="alert" className={alertClass(true)}>{error}</p>}
+                {error && <Alert>{error}</Alert>}
 
                 <div className="grid grid-cols-2 gap-3">
                     {FIELDS.map(([name, label, type, autoComplete, required, half]) => (
-                        <div key={name} className={half ? "" : "col-span-2"}>
-                            <label htmlFor={name} className={labelClass}>
-                                {label}
-                                {!required && <span className="font-normal text-mist-400"> (optional)</span>}
-                            </label>
-                            <input
-                                id={name}
-                                name={name}
-                                type={type}
-                                autoComplete={autoComplete}
-                                required={required}
-                                value={formData[name]}
-                                onChange={handleChange}
-                                aria-invalid={Boolean(fieldErrors[name])}
-                                aria-describedby={fieldErrors[name] ? `${name}-error` : undefined}
-                                className={`${fieldClass} ${fieldErrors[name] ? "border-red-300" : ""}`}
-                            />
-                            {fieldErrors[name] && (
-                                <p id={`${name}-error`} className="mt-1 text-xs text-red-700">{fieldErrors[name]}</p>
-                            )}
-                        </div>
+                        <Field
+                            key={name}
+                            id={name}
+                            name={name}
+                            label={label}
+                            note={required ? null : "(optional)"}
+                            type={type}
+                            autoComplete={autoComplete}
+                            required={required}
+                            value={formData[name]}
+                            onChange={handleChange}
+                            error={fieldErrors[name]}
+                            className={half ? "" : "col-span-2"}
+                        />
                     ))}
                 </div>
 
-                <button type="submit" disabled={busy} className={buttonClass()}>
+                <Button type="submit" disabled={busy}>
                     {busy ? "Creating account…" : "Create account"}
-                </button>
+                </Button>
 
-                <p className="text-center text-sm text-mist-600">
+                <p className="text-center text-sm text-mist-700">
                     Already have an account?{" "}
-                    <Link to="/login" state={location.state} className={linkClass}>Sign in</Link>
+                    <TextLink to="/login" state={location.state}>Sign in</TextLink>
                 </p>
-            </form>
+            </Panel>
         </Page>
     );
 }
