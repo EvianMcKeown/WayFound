@@ -15,7 +15,7 @@ function ModeChip({ operator, avoided, onToggle }) {
             aria-checked={!avoided}
             aria-label={`Use ${operator.label}`}
             onClick={onToggle}
-            className={`group flex min-h-10 items-center gap-1.5 rounded-full border px-2.5 text-sm font-medium transition-[background-color,border-color,color,opacity] duration-[var(--duration-base)] ease-[var(--ease-out-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 enabled:active:scale-[0.97] ${
+            className={`group flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-full border px-2 text-[13px] font-medium transition-[background-color,border-color,color,opacity] duration-[var(--duration-base)] ease-[var(--ease-out-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 enabled:active:scale-[0.97] ${
                 avoided ? "border-mist-200 bg-mist-100 text-mist-600" : "border-mist-300 bg-white text-mist-900 hover:border-mist-400"
             }`}
         >

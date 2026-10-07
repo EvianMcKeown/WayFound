@@ -100,11 +100,11 @@ export function TripHeadline({ journey }) {
     const { summary, arrival, departure, algorithm } = journey;
     return (
         <div>
-            <div className="flex items-center justify-between gap-2">
-                <p className="text-3xl font-bold tracking-tight text-mist-900">{formatDuration(summary.duration)}</p>
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <p className="whitespace-nowrap text-3xl font-bold tracking-tight text-mist-900">{formatDuration(summary.duration)}</p>
                 <span className="flex items-center gap-1.5">
                     {journey.avoiding > 0 && (
-                        <span className="flex items-center gap-1 rounded-full bg-mist-100 px-2 py-0.5 text-xs font-medium text-mist-700" title={journey.avoidingNames}>
+                        <span className="flex items-center gap-1 whitespace-nowrap rounded-full bg-mist-100 px-2 py-0.5 text-xs font-medium text-mist-700" title={journey.avoidingNames}>
                             <BanIcon className="h-3 w-3 text-red-700" />
                             Avoiding {journey.avoiding}
                         </span>
