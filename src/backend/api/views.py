@@ -14,10 +14,14 @@ from rest_framework.serializers import (
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from typing import Any, Dict, Tuple
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
 from .raptor_engine import get_engine, to_mins
-from .serializers import PlanRequestSerializer
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .serializers import LinesQuerySerializer, PlanRequestSerializer
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
+from rest_framework_simplejwt.settings import api_settings as jwt_settings
+from rest_framework_simplejwt.utils import get_md5_hash_password
 from rest_framework_simplejwt.views import TokenObtainPairView
 import math
 from algorithm_prototype.raptor import helper_functions as hf
@@ -103,13 +107,19 @@ def _session_payload(user) -> Dict[str, Any]:
     }
 
 
-@api_view(["POST"])
-def signup(request):
-    ser = SignupSerializer(data=request.data)
-    ser.is_valid(raise_exception=True)
-    user = ser.save()
-    UserProfile.objects.get_or_create(user=user)
-    return Response(_session_payload(user), status=status.HTTP_201_CREATED)
+class SignupView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "signup"
+
+    def post(self, request):
+        ser = SignupSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        user = ser.save()
+        UserProfile.objects.get_or_create(user=user)
+        return Response(_session_payload(user), status=status.HTTP_201_CREATED)
+
+
+signup = SignupView.as_view()
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -131,6 +141,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+    throttle_scope = "login"
+
+
+class CheckedTokenRefreshSerializer(TokenRefreshSerializer):
+    def validate(self, attrs):
+        token = RefreshToken(attrs["refresh"])
+        user = User.objects.filter(pk=token.payload.get(jwt_settings.USER_ID_CLAIM)).first()
+        if user is None or token.payload.get(jwt_settings.REVOKE_TOKEN_CLAIM) != get_md5_hash_password(user.password):
+            raise AuthenticationFailed("Your password was changed. Please sign in again.", code="password_changed")
+        return super().validate(attrs)
 
 
 # -------------------------------
@@ -138,6 +158,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 # -------------------------------
 @method_decorator(csrf_exempt, name="dispatch")
 class PlanJourneyView(APIView):
+    throttle_scope = "plan"
+
     def post(self, request, *args, **kwargs):
         ser = PlanRequestSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -166,10 +188,7 @@ class PlanJourneyView(APIView):
         # else:
         #    target_id = data["target_id"].strip()
 
-        if "departure_minutes" in data:
-            dep_mins = int(data["departure_minutes"])
-        else:
-            dep_mins = to_mins(int(data["day"]), data["time"])
+        dep_mins = data["departure"]
 
         # Extract preference parameters
         minimize_walking = data.get("minimize_walking", False)
@@ -240,17 +259,18 @@ class PlanJourneyView(APIView):
 # -------------------------------
 class LinesView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "lines"
 
     def get(self, request):
-        engine = get_engine()
-        limit = min(max(int(request.query_params.get("limit", 50) or 50), 1), 200)
-        mode = request.query_params.get("mode")
-        keys = request.query_params.get("keys")
-        found = engine.search_lines(
-            query=request.query_params.get("q", ""),
-            mode=int(mode) if mode not in (None, "") else None,
-            keys=[k for k in keys.split(",") if k] if keys is not None else None,
-            limit=limit,
+        params = {k: v for k, v in request.query_params.items() if not (k == "mode" and v == "")}
+        ser = LinesQuerySerializer(data=params)
+        ser.is_valid(raise_exception=True)
+        q = ser.validated_data
+        found = get_engine().search_lines(
+            query=q["q"],
+            mode=q.get("mode"),
+            keys=q.get("keys"),
+            limit=q["limit"],
         )
         return Response(found)
 
@@ -317,6 +337,12 @@ class UserSerializer(ModelSerializer):
         model = User
         fields = ["id", "username", "email", "first_name", "last_name"]
 
+    def validate_username(self, value):
+        value = value.strip()
+        if User.objects.filter(username__iexact=value).exclude(pk=self.instance.pk).exists():
+            raise ValidationError("That username is taken.")
+        return value
+
     def validate_email(self, value):
         value = value.strip()
         taken = User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk)
@@ -354,6 +380,7 @@ class ChangePasswordSerializer(Serializer):
 class ChangePasswordView(generics.UpdateAPIView):
     serializer_class = ChangePasswordSerializer
     permission_classes = [IsAuthenticated]
+    throttle_scope = "password"
 
     def get_object(self):
         return self.request.user
@@ -367,50 +394,63 @@ class ChangePasswordView(generics.UpdateAPIView):
         user.set_password(serializer.validated_data["new_password"])
         user.save()
         return Response(
-            {"message": "Password updated successfully"}, status=status.HTTP_200_OK
+            {"message": "Password updated successfully", **_session_payload(user)}, status=status.HTTP_200_OK
         )
 
 
 # -------------------------------
 # TRANSPORT DATA (Stops, Routes, Trips, StopTimes, Agency, Calendar, CalendarDate)
 # -------------------------------
-class StopViewSet(viewsets.ModelViewSet):
+class TablePage(PageNumberPagination):
+    page_size = 100
+    page_size_query_param = "page_size"
+    max_page_size = 500
+
+
+class StopViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Stop.objects.all()
     serializer_class = StopSerializer
-    permission_classes = [permissions.AllowAny]  # open for now
+    permission_classes = [permissions.AllowAny]
+    pagination_class = TablePage
 
 
-class RouteViewSet(viewsets.ModelViewSet):
+class RouteViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Route.objects.all()
     serializer_class = RouteSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = TablePage
 
 
-class TripViewSet(viewsets.ModelViewSet):
+class TripViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Trip.objects.all()
     serializer_class = TripSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = TablePage
 
 
-class StopTimeViewSet(viewsets.ModelViewSet):
+class StopTimeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = StopTime.objects.all()
     serializer_class = StopTimeSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = TablePage
 
 
-class AgencyViewSet(viewsets.ModelViewSet):
+class AgencyViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Agency.objects.all()
     serializer_class = AgencySerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = TablePage
 
 
-class CalendarViewSet(viewsets.ModelViewSet):
+class CalendarViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Calendar.objects.all()
     serializer_class = CalendarSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = TablePage
 
 
-class CalendarDateViewSet(viewsets.ModelViewSet):
+class CalendarDateViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = CalendarDate.objects.all()
     serializer_class = CalendarDateSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = TablePage

@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from rest_framework.fields import CharField
 from rest_framework.serializers import FloatField, IntegerField
+from . import service_area
 from .models import (
     IssueReport,
     SavedRoute,
@@ -164,15 +165,20 @@ class StopTimeSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+WEEK_MINUTES = 7 * 24 * 60
+MAX_ROUNDS = 8
+
+
 class PlanRequestSerializer(serializers.Serializer):
-    source_lat = FloatField(required=True)
-    source_lon = FloatField(required=True)
-    target_lat = FloatField(required=True)
-    target_lon = FloatField(required=True)
-    day = IntegerField(required=True)
-    time = CharField(required=True)
-    max_rounds = IntegerField(required=False, default=5)
-    departure_minutes = IntegerField(required=False)
+    source_lat = FloatField(min_value=-90, max_value=90)
+    source_lon = FloatField(min_value=-180, max_value=180)
+    target_lat = FloatField(min_value=-90, max_value=90)
+    target_lon = FloatField(min_value=-180, max_value=180)
+    day = IntegerField(required=False, min_value=0, max_value=6)
+    time = serializers.RegexField(r"^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$", required=False,
+                                  error_messages={"invalid": "Enter a time as HH:MM (00:00 to 23:59)."})
+    departure_minutes = IntegerField(required=False, min_value=0, max_value=WEEK_MINUTES - 1)
+    max_rounds = IntegerField(required=False, default=5, min_value=1, max_value=MAX_ROUNDS)
     debug = serializers.BooleanField(required=False, default=False)
     minimize_walking = serializers.BooleanField(required=False, default=False)
     minimize_stops = serializers.BooleanField(required=False, default=False)
@@ -188,10 +194,31 @@ class PlanRequestSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
-        if "departure_minutes" not in attrs and (
-            "day" not in attrs or "time" not in attrs
-        ):
-            raise serializers.ValidationError(
-                "Provide either departure_minutes or both day and time (HH:MM)."
-            )
+        if "departure_minutes" in attrs:
+            attrs["departure"] = attrs["departure_minutes"]
+        elif "day" in attrs and "time" in attrs:
+            hh, mm = (int(x) for x in attrs["time"].split(":")[:2])
+            attrs["departure"] = attrs["day"] * 24 * 60 + hh * 60 + mm
+        else:
+            raise serializers.ValidationError("Provide either departure_minutes or both day and time (HH:MM).")
+        errors = {}
+        if not service_area.contains(attrs["source_lat"], attrs["source_lon"]):
+            errors["source"] = [service_area.OUTSIDE_MESSAGE.replace("That place", "The starting point")]
+        if not service_area.contains(attrs["target_lat"], attrs["target_lon"]):
+            errors["target"] = [service_area.OUTSIDE_MESSAGE.replace("That place", "The destination")]
+        if errors:
+            raise serializers.ValidationError(errors)
         return attrs
+
+
+class LinesQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(required=False, default="", allow_blank=True, max_length=120)
+    mode = IntegerField(required=False, min_value=0, max_value=2)
+    limit = IntegerField(required=False, default=50, min_value=1, max_value=200)
+    keys = serializers.CharField(required=False, allow_blank=True, max_length=50 * 121)
+
+    def validate_keys(self, value):
+        keys = [k for k in value.split(",") if k]
+        if len(keys) > 50:
+            raise serializers.ValidationError("Ask for at most 50 lines.")
+        return keys

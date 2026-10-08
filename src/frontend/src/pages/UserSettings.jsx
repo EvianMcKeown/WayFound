@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Page from "../components/Page";
 import { apiFetch } from "../lib/api";
+import { setSession } from "../lib/auth";
 import AvoidTransport from "../components/AvoidTransport";
 import { Alert, Button, Checkbox, Field, Panel } from "../components/ui";
 import { avoidFromPrefs, avoidToPrefs } from "../lib/transport";
@@ -121,7 +122,8 @@ export default function UserSettings() {
         e.preventDefault();
         setBusy("password");
         try {
-            await apiFetch("/api/user/change_password/", { method: "PUT", auth: true, body: passwords });
+            const data = await apiFetch("/api/user/change_password/", { method: "PUT", auth: true, body: passwords });
+            if (data?.access) setSession(data);
             setPasswordMsg({ text: "Password changed.", error: false });
             setPasswords({ old_password: "", new_password: "" });
         } catch (err) {

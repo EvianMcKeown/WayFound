@@ -1,6 +1,12 @@
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase as _APITestCase
+
+
+class APITestCase(_APITestCase):
+    def _pre_setup(self):
+        super()._pre_setup()
+        cache.clear()
 
 from .models import IssueReport, SavedRoute
 
@@ -381,3 +387,121 @@ class PlanEndpointTests(APITestCase):
         body = {"source_lat": 0, "source_lon": 0, "target_lat": 1, "target_lon": 1, "day": 1, "time": "08:00"}
         for extra in ({"exclude_modes": [3]}, {"exclude_modes": [0, 1, 2, 1]}, {"exclude_lines": ["x"] * 51}):
             self.assertEqual(self.client.post("/api/plan/", {**body, **extra}, format="json").status_code, 400)
+
+
+class InputValidationTests(APITestCase):
+    BODY = {"source_lat": -33.9221, "source_lon": 18.4257, "target_lat": -33.9806, "target_lon": 18.4653,
+            "day": 1, "time": "08:00"}
+
+    def post_plan(self, **changes):
+        return self.client.post("/api/plan/", {**self.BODY, **changes}, format="json")
+
+    def test_plan_rejects_bad_times_and_limits(self):
+        for field, value in (
+            ("day", 7), ("day", -1), ("time", "25:00"), ("time", "08:60"), ("time", "99:00"), ("time", "abc"),
+            ("departure_minutes", -1), ("departure_minutes", 7 * 24 * 60), ("max_rounds", 0), ("max_rounds", -3),
+            ("max_rounds", 9), ("source_lat", 1000), ("source_lat", "NaN"),
+        ):
+            with self.subTest(field=field, value=value):
+                resp = self.post_plan(**{field: value})
+                self.assertEqual(resp.status_code, 400, resp.data)
+                self.assertIn(field, resp.data)
+
+    def test_plan_needs_a_departure(self):
+        body = {k: v for k, v in self.BODY.items() if k not in ("day", "time")}
+        self.assertEqual(self.client.post("/api/plan/", body, format="json").status_code, 400)
+        self.assertEqual(self.client.post("/api/plan/", {**body, "departure_minutes": 1920}, format="json").status_code, 200)
+
+    def test_plan_outside_cape_town_says_so(self):
+        for name, place in (("London", (51.5, -0.12)), ("Johannesburg", (-26.2, 28.04)), ("Cape Point", (-34.357, 18.497))):
+            with self.subTest(name):
+                resp = self.post_plan(source_lat=place[0], source_lon=place[1])
+                self.assertEqual(resp.status_code, 400)
+                self.assertIn("outside the area", resp.data["source"][0])
+                resp = self.post_plan(target_lat=place[0], target_lon=place[1])
+                self.assertIn("target", resp.data)
+
+    def test_lines_rejects_bad_query_params(self):
+        for query in ("limit=abc", "limit=0", "limit=500", "mode=x", "mode=9", "keys=" + ",".join(["a"] * 51)):
+            with self.subTest(query):
+                self.assertEqual(self.client.get(f"/api/lines/?{query}").status_code, 400)
+        self.assertEqual(self.client.get("/api/lines/?mode=&q=101").status_code, 200)
+
+    def test_plan_is_throttled(self):
+        from django.conf import settings
+
+        allowed = int(settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["plan"].split("/")[0])
+        codes = [self.post_plan(source_lat="x").status_code for _ in range(allowed + 1)]
+        self.assertEqual(codes[-1], 429)
+        self.assertNotIn(429, codes[:-1])
+
+
+class ServiceAreaTests(APITestCase):
+    def test_every_stop_is_inside(self):
+        from .raptor_engine import get_engine
+        from . import service_area
+
+        outside = [s.id for s in get_engine().stops.values() if not service_area.contains(s.lat, s.lon)]
+        self.assertEqual(outside, [], "widen api/service_area.py")
+
+    def test_address_search_keeps_to_the_area(self):
+        from unittest import mock
+
+        from . import geocode
+
+        payload = {"features": [
+            {"geometry": {"coordinates": [18.42, -33.92]}, "properties": {"name": "Cape Town"}},
+            {"geometry": {"coordinates": [28.04, -26.2]}, "properties": {"name": "Johannesburg"}},
+        ]}
+        fake = mock.MagicMock()
+        fake.__enter__.return_value = fake
+        with mock.patch.object(geocode.urllib.request, "urlopen", return_value=fake) as urlopen, \
+                mock.patch.object(geocode.json, "load", return_value=payload):
+            found = self.client.get("/api/geocode/", {"q": "town"}).data
+        self.assertEqual([r["label"] for r in found], ["Cape Town"])
+        self.assertIn("bbox=18.27%2C-34.26%2C19.06%2C-33.42", urlopen.call_args[0][0].full_url)
+
+
+class AccessControlTests(APITestCase):
+    def test_timetable_tables_are_read_only(self):
+        for path in ("/api/stops/", "/api/routes/", "/api/trips/", "/api/stop-times/", "/api/agencies/",
+                     "/api/calendars/", "/api/calendar-dates/"):
+            with self.subTest(path):
+                self.assertEqual(self.client.post(path, {}, format="json").status_code, 405)
+                resp = self.client.get(path)
+                self.assertEqual(resp.status_code, 200)
+                self.assertIn("results", resp.data)
+
+    def test_login_is_throttled(self):
+        from django.conf import settings
+
+        allowed = int(settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["login"].split("/")[0])
+        codes = [
+            self.client.post("/api/login/", {"username": "nobody", "password": "guess"}, format="json").status_code
+            for _ in range(allowed + 1)
+        ]
+        self.assertEqual(codes[-1], 429)
+
+    def test_username_change_is_case_insensitive(self):
+        User.objects.create_user("Admin", "admin@example.com", STRONG)
+        user = User.objects.create_user("thandi", "t@example.com", STRONG)
+        auth(self.client, user)
+        resp = self.client.patch("/api/user/", {"username": "admin"}, format="json")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("username", resp.data)
+
+    def test_changing_the_password_signs_out_other_devices(self):
+        user = User.objects.create_user("thandi", "t@example.com", STRONG)
+        other = auth(self.client, user)
+        here = auth(self.client, user)
+        resp = self.client.put("/api/user/change_password/", {"old_password": STRONG, "new_password": "rail-Harbour-77"}, format="json")
+        self.assertEqual(resp.status_code, 200)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {other['access']}")
+        self.assertEqual(self.client.get("/api/user/").status_code, 401)
+        self.client.credentials()
+        for old in (other["refresh"], here["refresh"]):
+            self.assertEqual(self.client.post("/api/token/refresh/", {"refresh": old}, format="json").status_code, 401)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {resp.data['access']}")
+        self.assertEqual(self.client.get("/api/user/").status_code, 200)
+        self.client.credentials()
+        self.assertEqual(self.client.post("/api/token/refresh/", {"refresh": resp.data["refresh"]}, format="json").status_code, 200)

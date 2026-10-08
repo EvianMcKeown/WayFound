@@ -12,6 +12,7 @@ export class SessionExpiredError extends Error {
 }
 
 function errorMessage(data, status) {
+    if (status === 429) return "Too many requests. Please wait a moment and try again.";
     if (data?.detail || data?.error) return data.detail || data.error;
     if (data && typeof data === "object") {
         const first = Object.values(data).flat()[0];

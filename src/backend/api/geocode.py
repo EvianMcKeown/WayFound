@@ -11,6 +11,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import service_area
+
 CACHE_TTL_SECONDS = 60 * 60
 MIN_QUERY_LENGTH = 3
 MAX_QUERY_LENGTH = 120
@@ -18,7 +20,6 @@ RESULT_LIMIT = 6
 UPSTREAM_TIMEOUT_SECONDS = 12
 
 BIAS_LAT, BIAS_LON = -33.9249, 18.4241
-ZA_BBOX = "16.3,-34.9,32.9,-22.1"
 
 
 def _label(props: dict) -> str:
@@ -46,7 +47,7 @@ def _query_photon(q: str) -> list:
             "lang": "en",
             "lat": BIAS_LAT,
             "lon": BIAS_LON,
-            "bbox": ZA_BBOX,
+            "bbox": service_area.photon_bbox(),
         }
     )
     req = urllib.request.Request(
@@ -59,6 +60,8 @@ def _query_photon(q: str) -> list:
     results = []
     for feature in payload.get("features", []):
         lon, lat = feature["geometry"]["coordinates"]
+        if not service_area.contains(lat, lon):
+            continue
         results.append(
             {
                 "label": _label(feature.get("properties", {})),

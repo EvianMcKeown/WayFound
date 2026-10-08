@@ -10,11 +10,33 @@ if str(REPO_ROOT) not in sys.path:
 
 GTFS_FOLDER = str((REPO_ROOT / "data" / "gtfs").resolve()) + "/"
 
-SECRET_KEY = "REMOVED"
+import os
 
-DEBUG = True
+from django.core.exceptions import ImproperlyConfigured
 
-ALLOWED_HOSTS = ["*"]  # allow all for dev; restrict in production
+
+def _env_list(name: str) -> list:
+    return [v.strip() for v in os.environ.get(name, "").split(",") if v.strip()]
+
+
+DEBUG = os.environ.get("DJANGO_DEBUG", "1").lower() not in ("0", "false", "no", "off")
+
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured("Set DJANGO_SECRET_KEY when DJANGO_DEBUG is off.")
+    SECRET_KEY = "django-insecure-development-only-never-deploy-this-key"
+
+ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS") or (["*"] if DEBUG else [])
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured("Set DJANGO_ALLOWED_HOSTS when DJANGO_DEBUG is off.")
+
+if os.environ.get("DJANGO_HTTPS", "0").lower() in ("1", "true", "yes", "on"):
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
 
 
 # ----------------------------
@@ -122,12 +144,22 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.AllowAny",  # for now, open API; tighten later
     ),
     "DEFAULT_THROTTLE_CLASSES": ("rest_framework.throttling.ScopedRateThrottle",),
-    "DEFAULT_THROTTLE_RATES": {"geocode": "60/min", "reports": "5/hour"},
+    "DEFAULT_THROTTLE_RATES": {
+        "geocode": "60/min",
+        "reports": "5/hour",
+        "plan": "30/min",
+        "lines": "120/min",
+        "login": "10/min",
+        "signup": "5/hour",
+        "password": "5/hour",
+    },
 }
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "CHECK_REVOKE_TOKEN": True,
+    "TOKEN_REFRESH_SERIALIZER": "api.views.CheckedTokenRefreshSerializer",
 }
 
 GEOCODER_URL = "https://photon.komoot.io/api/"
@@ -137,9 +169,5 @@ GEOCODER_USER_AGENT = "WayFound/1.0"
 # ----------------------------
 # CORS (React frontend calls Django API)
 # ----------------------------
-CORS_ALLOW_ALL_ORIGINS = True
-# OR safer (specify React app address):
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-# ]
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = _env_list("DJANGO_CORS_ORIGINS")
