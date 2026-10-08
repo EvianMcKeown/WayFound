@@ -4,6 +4,7 @@ import { apiFetch } from "../lib/api";
 import AvoidTransport from "../components/AvoidTransport";
 import { Alert, Button, Checkbox, Field, Panel } from "../components/ui";
 import { avoidFromPrefs, avoidToPrefs } from "../lib/transport";
+import useFlash from "../lib/useFlash";
 
 const PROFILE_FIELDS = [
     ["username", "Username", "text"],
@@ -19,13 +20,13 @@ const PREFERENCES = [
 
 function PreferencesCard() {
     const [prefs, setPrefs] = useState(null);
-    const [msg, setMsg] = useState(null);
+    const [msg, setMsg, msgFlash] = useFlash();
 
     useEffect(() => {
         apiFetch("/api/preferences/", { auth: true })
             .then(setPrefs)
             .catch(() => setMsg({ text: "Could not load your preferences.", error: true }));
-    }, []);
+    }, [setMsg]);
 
     const toggle = async (key, value) => {
         const previous = prefs;
@@ -57,7 +58,7 @@ function PreferencesCard() {
                 <h2 id="prefs-heading" className="text-sm font-semibold text-mist-700">Journey preferences</h2>
                 <p className="text-xs text-mist-600">The planner starts with these set. You can still change them for a single search.</p>
             </div>
-            {msg && <Alert tone={msg.error ? "error" : "success"} role="status">{msg.text}</Alert>}
+            {msg && <Alert tone={msg.error ? "error" : "success"} role="status" {...msgFlash}>{msg.text}</Alert>}
             {prefs === null && !msg && <p className="text-sm text-mist-600">Loading…</p>}
             {prefs && (
                 <div className="flex flex-col gap-3">
@@ -86,8 +87,8 @@ function PreferencesCard() {
 export default function UserSettings() {
     const [user, setUser] = useState({ username: "", email: "", first_name: "", last_name: "" });
     const [passwords, setPasswords] = useState({ old_password: "", new_password: "" });
-    const [profileMsg, setProfileMsg] = useState(null);
-    const [passwordMsg, setPasswordMsg] = useState(null);
+    const [profileMsg, setProfileMsg, profileFlash] = useFlash();
+    const [passwordMsg, setPasswordMsg, passwordFlash] = useFlash();
     const [busy, setBusy] = useState(null);
 
     useEffect(() => {
@@ -101,7 +102,7 @@ export default function UserSettings() {
                 })
             )
             .catch(() => setProfileMsg({ text: "Could not load your details.", error: true }));
-    }, []);
+    }, [setProfileMsg]);
 
     const handleProfileUpdate = async (e) => {
         e.preventDefault();
@@ -138,7 +139,7 @@ export default function UserSettings() {
 
             <Panel as="form" onSubmit={handleProfileUpdate} className="flex flex-col gap-3 p-5">
                 <h2 className="text-sm font-semibold text-mist-700">Profile</h2>
-                {profileMsg && <Alert tone={profileMsg.error ? "error" : "success"} role="status">{profileMsg.text}</Alert>}
+                {profileMsg && <Alert tone={profileMsg.error ? "error" : "success"} role="status" {...profileFlash}>{profileMsg.text}</Alert>}
                 <div className="grid gap-3 sm:grid-cols-2">
                     {PROFILE_FIELDS.map(([key, label, type]) => (
                         <Field
@@ -158,7 +159,7 @@ export default function UserSettings() {
 
             <Panel as="form" onSubmit={handlePasswordChange} className="flex flex-col gap-3 p-5">
                 <h2 className="text-sm font-semibold text-mist-700">Change password</h2>
-                {passwordMsg && <Alert tone={passwordMsg.error ? "error" : "success"} role="status">{passwordMsg.text}</Alert>}
+                {passwordMsg && <Alert tone={passwordMsg.error ? "error" : "success"} role="status" {...passwordFlash}>{passwordMsg.text}</Alert>}
                 <div className="grid gap-3 sm:grid-cols-2">
                     <Field
                         id="old_password"

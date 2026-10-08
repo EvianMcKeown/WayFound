@@ -31,7 +31,7 @@ def fetch_layer(layer: int) -> list[dict]:
     while True:
         url = (f"{BASE}/{layer}/query?where=1%3D1&outFields=*&outSR=4326"
                f"&resultOffset={offset}&resultRecordCount=1000&f=json")
-        req = urllib.request.Request(url, headers={"User-Agent": "PathPilot-capstone/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "WayFound/1.0"})
         page = json.load(urllib.request.urlopen(req, timeout=60))
         feats += page.get("features", [])
         if not page.get("exceededTransferLimit"):
@@ -74,7 +74,7 @@ def fetch_osm(cache: Path | None, query: str | None = None) -> list[dict]:
             try:
                 req = urllib.request.Request(
                     url, data=urllib.parse.urlencode({"data": query or OSM_QUERY}).encode(),
-                    headers={"User-Agent": "PathPilot-capstone/1.0"})
+                    headers={"User-Agent": "WayFound/1.0"})
                 data = json.load(urllib.request.urlopen(req, timeout=200))
                 if cache:
                     cache.write_text(json.dumps(data))
@@ -175,7 +175,7 @@ def write_gabs_stations_csv(path: Path) -> None:
     while True:
         url = (f"{BASE}/6/query?where=CLASSIFICA%3D%27Station%27&outFields=BUSSTOPNO%2CBUSSTOPDES&outSR=4326"
                f"&resultOffset={offset}&resultRecordCount=1000&f=json")
-        req = urllib.request.Request(url, headers={"User-Agent": "PathPilot-capstone/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "WayFound/1.0"})
         page = json.load(urllib.request.urlopen(req, timeout=60))
         feats += page.get("features", [])
         if not page.get("exceededTransferLimit"):

@@ -10,23 +10,27 @@
   :root { --ink: #1a1e23; --brand: #104fca; --mist: #585c63; }
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #f6f9fe; font-family: "IBM Plex Sans", system-ui, sans-serif; cursor: none; }
-  #world { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(135deg, #f1f6fe 0%, #ffffff 45%, #e1ecff 100%); }
+  #world { position: absolute; inset: 0; overflow: hidden; background: #f6f9fe; }
+  .scenery { position: absolute; inset: 0; pointer-events: none; -webkit-mask: var(--m) center / cover no-repeat; mask: var(--m) center / cover no-repeat; }
+  #contours { --m: url(/backdrop/contours.svg); background: #e1ecff; }
+  #roads { --m: url(/backdrop/roads.svg); background: #e4e7ec; }
 
   #beat { position: absolute; left: 0; top: 0; width: 1px; height: 1px; background: #f1f6fe; z-index: 100; animation: beat 1s linear infinite; }
   @keyframes beat { from { opacity: 0.98; } to { opacity: 1; } }
-  .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.55; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.45; }
   #blob1 { width: 760px; height: 760px; left: -160px; top: -200px; background: #9bbeff; }
-  #blob2 { width: 640px; height: 640px; right: -120px; bottom: -220px; background: #2c71f8; opacity: 0.28; }
-  #blob3 { width: 520px; height: 520px; right: 220px; top: -240px; background: #00b0df; opacity: 0.16; }
+  #blob2 { width: 640px; height: 640px; right: -120px; bottom: -220px; background: #2c71f8; opacity: 0.22; }
+  #blob3 { width: 520px; height: 520px; right: 220px; top: -240px; background: #00b0df; opacity: 0.13; }
 
-  #cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+  #cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+  #world.carded #cam { opacity: 0; }
   .device { position: absolute; background: #0b1018; overflow: hidden; opacity: 0; scale: 0.97; transform-origin: 50% 50%;
     transition: opacity var(--dev-ms, 600ms) ease-in-out, scale var(--dev-ms, 600ms) cubic-bezier(0.22, 1, 0.36, 1); }
   .device.back { z-index: 2; }
   .device[data-shown="true"] { opacity: 1; scale: 1; }
   .device:not([data-shown="true"]) { pointer-events: none; }
-  .device.desktop { border-radius: 16px; box-shadow: 0 40px 100px rgba(16, 40, 18, 0.28), 0 8px 24px rgba(16, 40, 18, 0.18), 0 0 0 1px rgba(16, 40, 18, 0.12); }
-  .device.phone { border-radius: 56px; padding: 12px; background: #11151a; box-shadow: 0 40px 100px rgba(16, 40, 18, 0.35), 0 8px 24px rgba(16, 30, 60, 0.2), inset 0 0 0 2px #2a313a; }
+  .device.desktop { border-radius: 16px; box-shadow: 0 40px 100px rgba(16, 30, 60, 0.28), 0 8px 24px rgba(16, 30, 60, 0.18), 0 0 0 1px rgba(16, 30, 60, 0.12); }
+  .device.phone { border-radius: 56px; padding: 12px; background: #11151a; box-shadow: 0 40px 100px rgba(16, 30, 60, 0.35), 0 8px 24px rgba(16, 30, 60, 0.2), inset 0 0 0 2px #2a313a; }
   .device iframe { display: block; border: 0; background: #fff; contain: paint; }
   .device.desktop iframe { border-radius: 16px; clip-path: inset(0 round 16px); }
   .device.phone iframe { border-radius: 44px; clip-path: inset(0 round 44px); }
@@ -37,7 +41,7 @@
   #cursor { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; z-index: 5; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35)); opacity: 0; transition: opacity 260ms ease, scale 120ms ease-out; }
   #cursor.press { scale: 0.86; }
   #ripple { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 4; }
-  #ripple i { position: absolute; left: -30px; top: -30px; width: 60px; height: 60px; border-radius: 50%; background: rgba(16, 132, 24, 0.28); border: 2px solid rgba(16, 132, 24, 0.6); animation: ripple 520ms ease-out forwards; }
+  #ripple i { position: absolute; left: -30px; top: -30px; width: 60px; height: 60px; border-radius: 50%; background: rgba(16, 79, 202, 0.22); border: 2px solid rgba(16, 79, 202, 0.55); animation: ripple 520ms ease-out forwards; }
   @keyframes ripple { from { transform: scale(0.2); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
   #finger { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 6; opacity: 0; transition: opacity 160ms ease-out; }
   #finger i { position: absolute; left: -34px; top: -34px; width: 68px; height: 68px; border-radius: 50%; background: rgba(255, 255, 255, 0.55); border: 2px solid rgba(255, 255, 255, 0.95); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); backdrop-filter: blur(2px); transition: scale 140ms ease-out; }
@@ -49,18 +53,18 @@
   .badge.on { opacity: 1; translate: 0 -50%; }
   .badge i { width: 14px; height: 14px; border-radius: 50%; background: var(--c); flex: none; }
 
-  #caption { position: absolute; left: 50%; bottom: 46px; transform: translate(-50%, 18px); padding: 18px 34px; border-radius: 999px; background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(18px); box-shadow: 0 16px 40px rgba(16, 40, 18, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.7); font-size: 34px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); opacity: 0; transition: opacity 380ms cubic-bezier(0.22, 1, 0.36, 1), transform 380ms cubic-bezier(0.22, 1, 0.36, 1); white-space: nowrap; z-index: 20; }
+  #caption { position: absolute; left: 50%; bottom: 46px; transform: translate(-50%, 18px); padding: 18px 34px; border-radius: 999px; background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(18px); box-shadow: 0 16px 40px rgba(16, 30, 60, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.7); font-size: 34px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); opacity: 0; transition: opacity 380ms cubic-bezier(0.22, 1, 0.36, 1), transform 380ms cubic-bezier(0.22, 1, 0.36, 1); white-space: nowrap; z-index: 20; }
   #caption.on { opacity: 1; transform: translate(-50%, 0); }
   #caption.side { left: 1230px; bottom: auto; top: 50%; width: 560px; white-space: normal; text-align: left; border-radius: 40px; padding: 30px 42px; font-size: 48px; line-height: 1.2; transform: translate(0, calc(-50% + 18px)); }
   #caption.side.on { transform: translate(0, -50%); }
   #caption b { color: var(--brand); font-weight: 700; white-space: nowrap; }
 
-  #card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; background: linear-gradient(135deg, #f1f6fe 0%, #ffffff 50%, #e1ecff 100%); opacity: 0; pointer-events: none; transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1); z-index: 30; text-align: center; }
+  #card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; opacity: 0; pointer-events: none; transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1); z-index: 30; text-align: center; }
   #card.on { opacity: 1; }
-  #card img { width: 150px; height: 150px; border-radius: 36px; background: #fff; box-shadow: 0 18px 50px rgba(16, 30, 60, 0.2), 0 0 0 1px #e1ecff; transform: translateY(14px) scale(0.94); transition: transform 800ms cubic-bezier(0.22, 1, 0.36, 1); }
-  #card.on img { transform: none; }
-  #card h1 { margin: 0; font-size: 104px; line-height: 1; letter-spacing: -0.035em; font-weight: 700; color: var(--ink); }
-  #card h1 .f { color: var(--brand); background: linear-gradient(90deg, #2c71f8, #104fca); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  #card > img { width: 150px; height: 150px; border-radius: 36px; background: #fff; box-shadow: 0 18px 50px rgba(16, 30, 60, 0.2), 0 0 0 1px #e1ecff; transform: translateY(14px) scale(0.94); transition: transform 800ms cubic-bezier(0.22, 1, 0.36, 1); }
+  #card.on > img { transform: none; }
+  #card h1 { margin: 0; font-size: 104px; line-height: 1; }
+  #card h1 img { display: block; width: auto; height: 1.0701em; margin: 0.135em 0 -0.2051em; }
   #card p { margin: 0; font-size: 38px; font-weight: 500; color: var(--mist); max-width: 1200px; }
   #card h1, #card p { perspective: 900px; }
   #card .w { display: inline-block; transform-origin: 50% 0; transform: rotateX(-90deg); opacity: 0; transition: transform 750ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i) * 85ms + var(--d)), opacity 350ms ease calc(var(--i) * 85ms + var(--d)); }
@@ -73,6 +77,7 @@
 <body>
 <div id="world">
   <div id="beat"></div>
+  <div class="scenery" id="contours"></div><div class="scenery" id="roads"></div>
   <div class="blob" id="blob1"></div><div class="blob" id="blob2"></div><div class="blob" id="blob3"></div>
   <div id="cam">
     <div id="dev0" class="device desktop"><iframe id="app0" title="WayFound"></iframe></div>
@@ -84,14 +89,15 @@
   <img id="ghost" alt="" />
   <div id="fade"></div>
   <div id="caption"></div>
-  <div id="card"><img src="/logo.png" alt="" /><h1><b>Way</b><span>Found</span></h1><p></p></div>
+  <div id="card"><img src="/logo.png" alt="" /><h1></h1><p></p></div>
 </div>
 <script>
 const W = 1920, H = 1080;
 const $ = (id) => document.getElementById(id);
 const cam = $("cam"), cursor = $("cursor"), ripple = $("ripple"), finger = $("finger");
 const flipWords = (text, first, d) => text.split(" ").map((w, k) => `<span class="w" style="--i:${first + k};--d:${d}ms">${w}</span>`).join(" ");
-$("card").querySelector("h1").innerHTML = '<span class="w" style="--i:0;--d:0ms">Way</span><span class="w f" style="--i:1;--d:0ms">Found</span>';
+$("card").querySelector("h1").innerHTML = '<img class="w" style="--i:0;--d:0ms" src="/wordmark.svg" alt="WayFound" />';
+const decoded = (src) => { const img = new Image(); img.src = src; return img.decode().catch(() => {}); };
 
 const ease = {
   inOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
@@ -157,8 +163,10 @@ const stage = {
   },
   async ghost(url) {
     const g = $("ghost");
+    if (url == null) { const c = document.createElement("canvas"); c.width = c.height = 1; url = c.toDataURL(); }
     g.style.transition = "none"; g.style.opacity = 1; g.style.webkitMaskImage = "none"; g.src = url;
     await g.decode();
+    stage.ghostUsed = true;
   },
   swapNow(zoom = 1) {
     const back = q, front = cur;
@@ -305,17 +313,21 @@ const stage = {
     if (el.classList.contains("on")) { el.classList.remove("on"); return sleep(260).then(() => { el.innerHTML = html; el.classList.add("on"); return sleep(380); }); }
     el.innerHTML = html; el.classList.add("on"); return sleep(380);
   },
-  cardPre(sub) { $("card").querySelector("p").innerHTML = flipWords(sub, 0, 350); $("card").classList.add("pre", "on"); },
+  ready: Promise.all(["/backdrop/contours.svg", "/backdrop/roads.svg", "/wordmark.svg", "/logo.png"].map(decoded)),
+  cardPre(sub) { $("card").querySelector("p").innerHTML = flipWords(sub, 0, 350); $("card").classList.add("pre", "on"); $("world").classList.add("carded"); },
   card(on, sub) {
     if (sub != null) { $("card").querySelector("p").innerHTML = flipWords(sub, 0, 350); void $("card").offsetWidth; }
     $("card").classList.remove("pre");
     $("card").classList.toggle("on", on);
+    $("world").classList.toggle("carded", on);
     return sleep(on ? 1500 : 650);
   },
   fade(on, ms = 350) { const f = $("fade"); f.style.transition = `opacity ${ms}ms ease`; f.style.opacity = on ? 1 : 0; return sleep(ms + 30); },
 };
 const docs = () => [document, ...slots.map((sl) => { try { return sl.frame.contentDocument; } catch { return null; } })].filter(Boolean);
 
+let clockBase = 0, clockStart = null;
+const videoNow = () => (clockStart == null ? clockBase : clockBase + performance.now() - clockStart);
 const BLOBS = [
   { el: $("blob1"), period: 18000, to: [140, 90, 1.12] },
   { el: $("blob2"), period: 22000, to: [-160, -70, 1.1] },
@@ -329,10 +341,19 @@ function drift(now) {
     b.el.style.transform = `translate(${b.to[0] * e}px, ${b.to[1] * e}px) scale(${1 + (b.to[2] - 1) * e})`;
   }
 }
-drift(performance.now());
+drift(videoNow());
+stage.startClock = (ms) => { clockBase = ms; clockStart = performance.now(); drift(videoNow()); };
+
+stage.carryMode = null;
+stage.ghostUsed = false;
+stage.carry = () => {
+  if (stage.carryMode === "ghost") return stage.ghostUsed ? Number(getComputedStyle($("ghost")).opacity) : 1;
+  if (stage.carryMode === "cam") return Number(getComputedStyle(cam).opacity);
+  return 0;
+};
 
 stage.tick = () => {
-  drift(performance.now());
+  drift(videoNow());
   for (const doc of docs()) {
     const now = doc.defaultView.performance.now(), since = doc.__lastTick == null ? 0 : now - doc.__lastTick;
     for (const a of doc.getAnimations()) {

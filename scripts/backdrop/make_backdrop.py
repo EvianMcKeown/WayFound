@@ -1,8 +1,10 @@
 import argparse
 import json
 import math
+import struct
 import urllib.parse
 import urllib.request
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,11 +26,13 @@ ROAD_CLASSES = {
     "service": 0.9,
 }
 LINKS = {f"{c}_link": c for c in ("motorway", "trunk", "primary", "secondary", "tertiary")}
-TRIP = {
-    "source_lat": -33.978, "source_lon": 18.57, "target_lat": -33.9025, "target_lon": 18.4207,
-    "day": 1, "time": "08:00", "max_rounds": 5, "minimize_walking": False, "minimize_stops": False,
-    "use_dijkstra": False, "exclude_modes": [], "exclude_lines": [],
-}
+
+DEM_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
+DEM_ZOOM = 12
+CONTOUR_STEP = 50
+INDEX_STEP = 250
+CONTOUR_WIDTH, INDEX_WIDTH = 0.7, 1.3
+MIN_CONTOUR = 30
 
 
 def fetch_roads():
@@ -41,17 +45,9 @@ def fetch_roads():
     req = urllib.request.Request(
         "https://overpass-api.de/api/interpreter",
         data=urllib.parse.urlencode({"data": query}).encode(),
-        headers={"User-Agent": "WayFound-backdrop/1.0 (student project)"},
+        headers={"User-Agent": "WayFound-backdrop/1.0"},
     )
     with urllib.request.urlopen(req, timeout=360) as r:
-        return json.load(r)
-
-
-def fetch_route():
-    req = urllib.request.Request(
-        "http://127.0.0.1:8000/api/plan/", data=json.dumps(TRIP).encode(), headers={"Content-Type": "application/json"}
-    )
-    with urllib.request.urlopen(req, timeout=60) as r:
         return json.load(r)
 
 
@@ -159,42 +155,198 @@ def roads_svg(data):
     return svg(body, "The road network of central Cape Town. Data (c) OpenStreetMap contributors, ODbL.")
 
 
-def route_svg(data):
-    rides, walks, stops = [], [], []
+def read_png(data):
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
+    pos, idat, palette = 8, [], None
+    while pos < len(data):
+        length, kind = struct.unpack(">I4s", data[pos : pos + 8])
+        body = data[pos + 8 : pos + 8 + length]
+        pos += 12 + length
+        if kind == b"IHDR":
+            width, height, depth, ctype, _, _, interlace = struct.unpack(">IIBBBBB", body)
+        elif kind == b"PLTE":
+            palette = [tuple(body[i : i + 3]) for i in range(0, len(body), 3)]
+        elif kind == b"IDAT":
+            idat.append(body)
+        elif kind == b"IEND":
+            break
+    assert depth == 8 and interlace == 0 and ctype in (2, 3, 6), f"unsupported PNG ({depth=}, {ctype=}, {interlace=})"
+    bpp = {2: 3, 3: 1, 6: 4}[ctype]
+    stride = width * bpp
+    raw = zlib.decompress(b"".join(idat))
+    rows, prev, i = [], bytearray(stride), 0
+    for _ in range(height):
+        f, line = raw[i], bytearray(raw[i + 1 : i + 1 + stride])
+        i += 1 + stride
+        if f == 1:
+            for k in range(bpp, stride):
+                line[k] = (line[k] + line[k - bpp]) & 255
+        elif f == 2:
+            for k in range(stride):
+                line[k] = (line[k] + prev[k]) & 255
+        elif f == 3:
+            for k in range(stride):
+                line[k] = (line[k] + ((line[k - bpp] if k >= bpp else 0) + prev[k]) // 2) & 255
+        elif f == 4:
+            for k in range(stride):
+                a = line[k - bpp] if k >= bpp else 0
+                b, c = prev[k], (prev[k - bpp] if k >= bpp else 0)
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[k] = (line[k] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        rows.append(line)
+        prev = line
+    if ctype == 3:
+        return [[palette[v] for v in row] for row in rows]
+    return [[tuple(row[k : k + 3]) for k in range(0, stride, bpp)] for row in rows]
 
-    def at(stop):
-        return project(stop["lon"], stop["lat"]) if stop and stop.get("lat") is not None else None
 
-    for step in data["path_objs"]:
-        if step["mode"] == "trip":
-            pts = [project(lon, lat) for lon, lat in step.get("shape") or []]
-            if len(pts) < 2:
-                pts = [p for p in (at(step.get("from_stop")), at(step.get("stop"))) if p]
-            rides.append(pts)
-            stops += [at(x) for x in step.get("stops_along") or []]
-            stops += [pts[0], pts[-1]]
-        elif step["mode"] == "transfer":
-            pts = [p for p in (at(step.get("from_stop")), at(step.get("stop"))) if p]
-            if len(pts) == 2:
-                walks.append(pts)
-    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="9"/>' for x, y in dict.fromkeys(p for p in stops if p))
-    body = (
-        f'<path d="{path_data(rides)}" fill="none" stroke="#000" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>\n'
-        f'<path d="{path_data(walks)}" fill="none" stroke="#000" stroke-width="6" stroke-linecap="round" stroke-dasharray="2 14"/>\n'
-        f"<g>{dots}</g>"
+def tile_pixel(lon, lat):
+    size = 256 * 2**DEM_ZOOM
+    y = (1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2
+    return ((lon + 180) / 360 * size, y * size)
+
+
+def pixel_lonlat(x, y):
+    size = 256 * 2**DEM_ZOOM
+    return (x / size * 360 - 180, math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / size)))))
+
+
+def fetch_tile(x, y, cache):
+    path = cache / f"{DEM_ZOOM}-{x}-{y}.png" if cache else None
+    if path and path.exists():
+        return path.read_bytes()
+    req = urllib.request.Request(DEM_URL.format(z=DEM_ZOOM, x=x, y=y), headers={"User-Agent": "WayFound-backdrop/1.0"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        data = r.read()
+    if path:
+        path.write_bytes(data)
+    return data
+
+
+def elevation_grid(cache):
+    margin = 4
+    x0, y0 = tile_pixel(w, n)
+    x1, y1 = tile_pixel(e, s)
+    gx0, gy0 = math.floor(x0) - margin, math.floor(y0) - margin
+    gx1, gy1 = math.ceil(x1) + margin, math.ceil(y1) + margin
+    tiles = {}
+    for ty in range(gy0 // 256, gy1 // 256 + 1):
+        for tx in range(gx0 // 256, gx1 // 256 + 1):
+            tiles[tx, ty] = read_png(fetch_tile(tx, ty, cache))
+    grid = []
+    for gy in range(gy0, gy1 + 1):
+        row = []
+        for gx in range(gx0, gx1 + 1):
+            r, g, b = tiles[gx // 256, gy // 256][gy % 256][gx % 256]
+            row.append(r * 256 + g + b / 256 - 32768)
+        grid.append(row)
+    return grid, gx0, gy0
+
+
+def smooth(grid, passes=3):
+    for _ in range(passes):
+        grid = [[(r[max(c - 1, 0)] + r[c] + r[min(c + 1, len(r) - 1)]) / 3 for c in range(len(r))] for r in grid]
+        h = len(grid)
+        grid = [
+            [(grid[max(i - 1, 0)][c] + grid[i][c] + grid[min(i + 1, h - 1)][c]) / 3 for c in range(len(grid[i]))]
+            for i in range(h)
+        ]
+    return grid
+
+
+def contour_lines(grid):
+    h, wd = len(grid), len(grid[0])
+    by_level = {}
+    for r in range(h - 1):
+        top, bottom = grid[r], grid[r + 1]
+        for c in range(wd - 1):
+            v = (top[c], top[c + 1], bottom[c + 1], bottom[c])
+            lo, hi = min(v), max(v)
+            for k in range(max(1, math.ceil(lo / CONTOUR_STEP)), math.ceil(hi / CONTOUR_STEP)):
+                by_level.setdefault(k * CONTOUR_STEP, []).append((r, c))
+    out = {}
+    for level, cells in sorted(by_level.items()):
+        adj = {}
+
+        def link(a, b):
+            adj.setdefault(a, []).append(b)
+            adj.setdefault(b, []).append(a)
+
+        for r, c in cells:
+            tl, tr, br, bl = grid[r][c], grid[r][c + 1], grid[r + 1][c + 1], grid[r + 1][c]
+            up = (tl > level, tr > level, br > level, bl > level)
+            t, b = 2 * (r * wd + c), 2 * ((r + 1) * wd + c)
+            l, rt = t + 1, 2 * (r * wd + c + 1) + 1
+            sides = {0: (t, l), 1: (t, rt), 2: (b, rt), 3: (b, l)}
+            crossed = [e for e, (p, q) in ((t, (0, 1)), (rt, (1, 2)), (b, (3, 2)), (l, (0, 3))) if up[p] != up[q]]
+            if len(crossed) == 2:
+                link(*crossed)
+            else:
+                centre_up = (tl + tr + br + bl) / 4 > level
+                for corner in range(4):
+                    if up[corner] != centre_up:
+                        link(*sides[corner])
+
+        def at(edge):
+            cell, vertical = divmod(edge, 2)
+            r, c = divmod(cell, wd)
+            r2, c2 = (r + 1, c) if vertical else (r, c + 1)
+            va, vb = grid[r][c], grid[r2][c2]
+            t = (level - va) / (vb - va)
+            return (c + t * (c2 - c), r + t * (r2 - r))
+
+        seen, lines = set(), []
+        for start in [k for k, v in adj.items() if len(v) == 1] + list(adj):
+            if start in seen:
+                continue
+            chain, cur = [start], start
+            seen.add(start)
+            while (nxt := next((k for k in adj[cur] if k not in seen), None)) is not None:
+                chain.append(nxt)
+                seen.add(nxt)
+                cur = nxt
+            if len(chain) > 2 and start in adj[cur]:
+                chain.append(start)
+            lines.append([at(k) for k in chain])
+        out[level] = lines
+    return out
+
+
+def contours_svg(cache):
+    grid, gx0, gy0 = elevation_grid(cache)
+    lines = contour_lines(smooth(grid))
+    regular, index = [], []
+    for level, polylines in lines.items():
+        for line in polylines:
+            pts = [project(*pixel_lonlat(gx0 + c + 0.5, gy0 + r + 0.5)) for c, r in line]
+            length = sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))
+            if pts[0] == pts[-1] and length < MIN_CONTOUR:
+                continue
+            (index if level % INDEX_STEP == 0 else regular).append(simplify(pts, 0.5))
+    body = "\n".join(
+        f'<path d="{path_data(group)}" fill="none" stroke="#000" stroke-width="{width}" stroke-linejoin="round"/>'
+        for group, width in ((regular, CONTOUR_WIDTH), (index, INDEX_WIDTH))
+        if group
     )
-    return svg(body, "A WayFound trip: Gugulethu to the V&amp;A Waterfront by Golden Arrow, Metrorail and MyCiTi.")
+    return svg(
+        body,
+        f"Contours every {CONTOUR_STEP} m (heavier every {INDEX_STEP} m) of central Cape Town. Elevation: SRTM "
+        "(NASA/USGS), via the Mapzen terrain tiles.",
+    )
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--roads", help="a saved Overpass response (JSON) instead of fetching")
-    ap.add_argument("--route", help="a saved /api/plan/ response (JSON) instead of asking the local backend")
+    ap.add_argument("--tiles", help="a folder to cache the terrain tiles in (read from it when they're there)")
     args = ap.parse_args()
+    cache = Path(args.tiles) if args.tiles else None
+    if cache:
+        cache.mkdir(parents=True, exist_ok=True)
     roads = json.loads(Path(args.roads).read_text(encoding="utf-8")) if args.roads else fetch_roads()
-    route = json.loads(Path(args.route).read_text(encoding="utf-8")) if args.route else fetch_route()
     OUT.mkdir(parents=True, exist_ok=True)
-    for name, text in (("roads.svg", roads_svg(roads)), ("route.svg", route_svg(route))):
+    for name, text in (("contours.svg", contours_svg(cache)), ("roads.svg", roads_svg(roads))):
         (OUT / name).write_text(text, encoding="utf-8")
         print(f"wrote {OUT / name} ({len(text.encode()) // 1024} KB)")
 

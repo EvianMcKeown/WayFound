@@ -51,7 +51,7 @@ def _query_photon(q: str) -> list:
     )
     req = urllib.request.Request(
         f"{base}?{params}",
-        headers={"User-Agent": getattr(settings, "GEOCODER_USER_AGENT", "pathpilot")},
+        headers={"User-Agent": getattr(settings, "GEOCODER_USER_AGENT", "WayFound/1.0")},
     )
     with urllib.request.urlopen(req, timeout=UPSTREAM_TIMEOUT_SECONDS) as resp:
         payload = json.load(resp)

@@ -3,7 +3,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { API_BASE } from "../lib/api";
 import { clearSession, useSession } from "../lib/auth";
 import { surfaceClass } from "../lib/ui";
-import { Button, Panel } from "./ui";
+import { Button } from "./ui";
 import Brand from "./Brand";
 import { ChevronIcon, MenuIcon } from "./icons";
 
@@ -58,7 +58,7 @@ function AccountMenu({ user, onSignOut }) {
             </Button>
 
             {open && (
-                <Panel tone="glass" role="menu" radius="xl" className="absolute right-0 top-full z-50 mt-2 w-56 p-1.5">
+                <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-mist-200 bg-white p-1.5 shadow-lg">
                     <p className="truncate px-3 pb-2 pt-1.5 text-xs text-mist-600">
                         Signed in as <span className="font-medium text-mist-800">{user.username}</span>
                     </p>
@@ -76,7 +76,7 @@ function AccountMenu({ user, onSignOut }) {
                     <button role="menuitem" type="button" onClick={onSignOut} className={menuItemClass}>
                         Sign out
                     </button>
-                </Panel>
+                </div>
             )}
         </div>
     );

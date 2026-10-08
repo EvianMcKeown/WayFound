@@ -174,7 +174,6 @@ class PlanJourneyView(APIView):
         # Extract preference parameters
         minimize_walking = data.get("minimize_walking", False)
         minimize_stops = data.get("minimize_stops", False)
-        use_dijkstra = data.get("use_dijkstra", False)
 
         out = engine.plan(
             source_lat=source_lat_p,  # Pass as float, not string
@@ -186,7 +185,6 @@ class PlanJourneyView(APIView):
             debug=False,
             minimize_walking=minimize_walking,
             minimize_stops=minimize_stops,
-            use_dijkstra=use_dijkstra,
             alternatives=data.get("alternatives", 1),
             exclude_modes=tuple(data.get("exclude_modes", ())),
             exclude_lines=tuple(data.get("exclude_lines", ())),
@@ -201,7 +199,6 @@ class PlanJourneyView(APIView):
                     "source_stop"
                 ),  # Include stop info for debugging
                 "target_stop": out.get("target_stop"),
-                "algorithm_used": "Dijkstra" if use_dijkstra else "RAPTOR",
         }
         body["exclusions"] = out["exclusions"]
         if out.get("blocked_by_exclusions"):

@@ -15,7 +15,7 @@ bar grows along the bottom edge for the whole video (the video player's own cont
 The video plays signed in as a demo user ("Alex"). The video server remembers the route saved on the laptop, so
 "Save this route" really changes to "Saved" and the phone really finds it under Saved routes.
 
-Timings below are from the last render (about 82 seconds in all); every render prints the real ones at the end.
+Timings below are from the last render (about 80 seconds in all); every render prints the real ones at the end.
 
 
 SCENE 1. INTRO                                                  0:00 - 0:03
@@ -67,7 +67,7 @@ SCENE 2. DESKTOP: ONE TRIP, PLANNED, ADJUSTED AND SAVED          0:03 - 0:50
 TRANSITION. A frozen frame of the laptop scene dissolves into the phone scene, with the camera easing in.
 
 
-SCENE 3. PHONE: THE SAME TRIP, IN YOUR POCKET                    0:50 - 1:16
+SCENE 3. PHONE: THE SAME TRIP, IN YOUR POCKET                    0:50 - 1:14
   Picture   A phone frame in the middle of the screen. Captions sit beside the phone so the bottom sheet
             stays in view. A finger marker shows each swipe and tap; there is no mouse pointer.
 
@@ -89,7 +89,7 @@ SCENE 3. PHONE: THE SAME TRIP, IN YOUR POCKET                    0:50 - 1:16
         - Finger taps Options, then "Minimise walking", then Find route; the route redraws with less walking.
 
 
-SCENE 4. OUTRO                                                   1:16 - 1:21
+SCENE 4. OUTRO                                                   1:14 - 1:19
   Picture   The closing card dissolves in over the phone (its line flips down word by word), holds, then the
             whole video fades out.
   On card   "Your next trip, planned in seconds."

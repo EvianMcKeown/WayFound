@@ -238,13 +238,14 @@ body {
   .revealing [data-reveal] { animation: boot-rise var(--duration-reveal) var(--ease-out-soft) both; animation-delay: calc(var(--reveal-i, 1) * var(--stagger)); }
   .revealing [data-reveal="header"] { animation-name: boot-drop; animation-delay: 0ms; }
   .revealing [data-reveal="sheet"] { animation-name: boot-sheet; }
-  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--duration-reveal); animation-timing-function: var(--ease-out-soft); }
 
   .map-surface[data-ready="fade"] { transition: opacity var(--duration-reveal) var(--ease-out-soft); }
 }
 .map-surface[data-ready="false"] { opacity: 0; }
 
-.backdrop-roads, .backdrop-route {
+.wordmark { display: block; width: auto; height: 1.0701em; margin-top: 0.135em; margin-bottom: -0.2051em; }
+
+.backdrop-roads, .backdrop-contours {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -252,8 +253,8 @@ body {
   mask: var(--backdrop-mask) center / cover no-repeat;
 }
 .backdrop-roads { --backdrop-mask: url("/backdrop/roads.svg"); background-color: var(--color-mist-200); }
-.backdrop-roads[data-ready="false"], .backdrop-route[data-ready="false"] { opacity: 0; }
+.backdrop-contours { --backdrop-mask: url("/backdrop/contours.svg"); background-color: var(--color-brand-100); }
+.backdrop-roads[data-ready="false"], .backdrop-contours[data-ready="false"] { opacity: 0; }
 @media (prefers-reduced-motion: no-preference) {
-  .backdrop-roads, .backdrop-route { transition: opacity var(--duration-reveal) var(--ease-out-soft); }
+  .backdrop-roads, .backdrop-contours { transition: opacity var(--duration-reveal) var(--ease-out-soft); }
 }
-.backdrop-route { --backdrop-mask: url("/backdrop/route.svg"); background-color: var(--color-brand-300); }

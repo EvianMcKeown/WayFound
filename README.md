@@ -1,8 +1,8 @@
-# RAPTOR Journey Planner (WayFound)
+# WayFound
 
-**CSC3003S Capstone Project — Stage 4: Implementation and Testing**
+**Cape Town Journey Planner**
 
-A Django and React public transport journey planner for Cape Town, built on the [RAPTOR algorithm](https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf) for fast and efficient transit routing. The web app is called **WayFound**.
+A Django and React public transport journey planner for Cape Town, built on the [RAPTOR algorithm](https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf) for fast and efficient transit routing.
 
 ![WayFound planner on a desktop: a Metrorail journey from Cape Town Station to Claremont drawn on the map, with the trip's legs listed in the left panel](docs/screenshots/planner.png)
 
@@ -18,10 +18,10 @@ On a phone the map fills the screen and the planner is a bottom sheet over it. O
 
 WayFound lets users plan trips across Cape Town's buses and trains in one place. It uses **GTFS data** for MyCiTi, Golden Arrow and PRASA Metrorail and the **RAPTOR (Round-Based Public Transit Routing) algorithm** to compute routes between places, considering walking, transfers and travel times.
 
-Unlike traditional shortest-path algorithms (e.g., Dijkstra's), RAPTOR works in **rounds**, making it both **faster and more scalable** for journey planning across large transport networks. Dijkstra is also included so the two can be compared on the same journey.
+Unlike traditional shortest-path algorithms (e.g., Dijkstra's), RAPTOR works in **rounds**, making it both **faster and more scalable** for journey planning across large transport networks.
 
 ### Features
-- Journey planning from any address or place to any other, with the RAPTOR algorithm (or Dijkstra, under Options for comparison).  
+- Journey planning from any address or place to any other, with the RAPTOR algorithm.  
 - Walking to and from stops, transfers, and route preferences (minimise walking, fewer transfers).  
 - Avoid transport: switch an operator (MyCiTi, Golden Arrow, Metrorail) off, or search for a single line (a MyCiTi number, a Metrorail line, a Golden Arrow pair of places) and the planner leaves it out. "Avoid" on a ride in the result does the same in one tap, with Undo. If nothing is found because of what is avoided, the result says which one is in the way and offers to allow it. Signed-in riders can keep their choices as defaults.  
 - Compare routes: the best route is the default, and "Compare routes" shows up to four more, ranked by arrival time and labelled "Fastest", "Fewest transfers" and "Least walking". Choose any of them as the route in use; a saved route remembers the choice.  
@@ -74,8 +74,8 @@ Unlike traditional shortest-path algorithms (e.g., Dijkstra's), RAPTOR works in 
 ### Setup
 ```bash
 # Clone the repo
-git clone https://github.com/EvianMcKeown/PublicTransportJourneyPlanner.git
-cd PublicTransportJourneyPlanner
+git clone https://github.com/EvianMcKeown/WayFound.git
+cd WayFound
 
 # Create a virtual environment
 python -m venv .venv
@@ -131,7 +131,7 @@ A real host must send unknown paths to `index.html` (the client-side routes `/lo
 
 ### Tests and checks
 ```bash
-pytest algorithm_prototype/tests                  # from the repo root: RAPTOR, Dijkstra, GTFS pipeline
+pytest algorithm_prototype/tests                  # from the repo root: RAPTOR, GTFS pipeline
 cd src/backend && python manage.py test api       # API: sign-up, token refresh, saved routes, preferences, reports
 cd src/frontend && npm run lint                   # ESLint
 ```
@@ -149,7 +149,7 @@ Use a throwaway account created through the sign-up page for the signed-in shots
 ### Help video
 [![WayFound help video: plan a trip on desktop and phone](src/frontend/public/help-video-poster.jpg)](src/frontend/public/help-video.mp4)
 
-*A 78 second silent walkthrough with captions: plan a trip across three operators, compare routes, avoid a line and save it, then open it from Saved routes on a phone. Click the picture to play it.*
+*An 80 second silent walkthrough with captions: plan a trip across three operators, compare routes, avoid a line and save it, then open it from Saved routes on a phone. Click the picture to play it.*
 
 The video on the Help page (`src/frontend/public/help-video.mp4`, with a poster and English captions) is rendered by script, so it can be re-shot after a design change. `scripts/video/record.mjs` builds the app, plays a storyboard in a browser with a smoothed pointer, camera zooms, captions and finger gestures, and renders it frame by frame at 30 fps with real motion blur (the browser's clock is paused between frames, so it is smooth however slow the machine is; moving frames get extra screenshots inside the shutter, averaged into one). It needs ffmpeg, a Chrome or Edge, Node 22+ and Django running on :8000.
 ```bash
@@ -159,6 +159,7 @@ node scripts/video/record.mjs --check    # do storyboard.mjs and script.txt quot
 ```
 `scripts/video/script.txt` is the script in plain words; `storyboard.mjs` is what is played. Every render checks that their captions agree and prints a timeline of scenes and captions at the end (warning about any caption on screen for under 1.5 s).
 It renders on the graphics card (`--gpu nvidia` by default) and stops if the browser ends up on a different one, such as an integrated GPU; use `--gpu software` for the CPU renderer. A fixed clock (Tuesday 08:00) and fixed address suggestions keep every take identical.
+The scenes render in parallel, one browser each (about 19 minutes on a GTX 980, against 26 one after another): where they meet, a cut between identical pictures or a dissolve that the final pass blends exactly. `--sequential` plays them in one browser instead.
 
 ---
 
@@ -166,7 +167,7 @@ It renders on the graphics card (`--gpu nvidia` by default) and stops if the bro
 
 | Path | What is in it |
 |---|---|
-| `algorithm_prototype/` | RAPTOR and Dijkstra, the GTFS reader, and their tests |
+| `algorithm_prototype/` | RAPTOR, the GTFS reader, and their tests |
 | `src/backend/` | Django REST API (planning, geocoding, accounts, saved routes, preferences, reports) |
 | `src/frontend/` | React 19, Vite and Tailwind 4 web app |
 | `src/journey_planner/` | The earlier Django prototype, kept for reference |
@@ -181,13 +182,14 @@ It renders on the graphics card (`--gpu nvidia` by default) and stops if the bro
 
 The design tokens (a primitive palette, semantic colours with one colour per transport operator, radii, spacing and a type scale) live in `src/frontend/src/index.css`, and the shared components in `src/frontend/src/components/`.
 
-Operator colours: MyCiTi `#0a5689`, Golden Arrow `#fa8c26`, Metrorail `#00b0df`. The brand green is kept for actions and the logo only.
+Operator colours: MyCiTi `#0a5689`, Golden Arrow `#fa8c26`, Metrorail `#00b0df`. The brand colour, Cobalt, is kept for actions, links, focus and the logo ([`docs/design/system.md`](docs/design/system.md)).
 
 ---
 
 ## Data and credits
 
 - **Timetables:** published MyCiTi, Golden Arrow and PRASA Metrorail timetables, converted to GTFS. Stop positions come from Western Cape Government transport data and OpenStreetMap contributors, and were repaired with the scripts in `data/gtfs/scripts/`. See `docs/plans/` for how each operator feed was rebuilt. Raw operator files are not redistributed (`data/raw/` is git-ignored).
+- **Page backdrop:** roads © OpenStreetMap contributors; terrain from NASA SRTM.
 - **Map:** [OpenFreeMap](https://openfreemap.org/), © OpenMapTiles, © OpenStreetMap contributors. **Address search:** [Photon](https://photon.komoot.io/) by Komoot, using OpenStreetMap data.
 - Timetables can change faster than the feed is updated, and some stops are only known to the nearest area (shown as "area" in a journey). Check with the operator before an important trip.
 

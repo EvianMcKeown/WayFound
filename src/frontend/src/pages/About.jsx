@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import Page from "../components/Page";
-import { foundClass } from "../lib/ui";
+import { Wordmark } from "../components/Brand";
 import { MODE_STYLE } from "../lib/journey";
 import { Button, Panel, TextLink } from "../components/ui";
 
@@ -32,9 +32,8 @@ export default function About() {
             <Panel as="section" radius="3xl" className="flex flex-col items-center gap-5 px-6 py-10 text-center">
                 <img src="/logo.svg" alt="" className="h-20 w-20 rounded-3xl bg-white shadow-md ring-1 ring-brand-100" />
                 <div className="flex flex-col items-center gap-1">
-                    <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                        <span className="text-mist-900">Way</span>
-                        <span className={foundClass}>Found</span>
+                    <h1 className="text-3xl sm:text-4xl">
+                        <Wordmark alt="WayFound" />
                     </h1>
                     <p className="text-sm font-medium text-mist-600 sm:text-base">Cape Town Journey Planner</p>
                 </div>
@@ -66,9 +65,8 @@ export default function About() {
                 <p className="text-sm text-mist-700">
                     WayFound finds the stops nearest to where you start and finish, then searches the timetables with{" "}
                     <strong className="font-medium">RAPTOR</strong>, a public-transport routing algorithm that works out
-                    the earliest arrival in rounds, one per vehicle you board. You can switch to{" "}
-                    <strong className="font-medium">Dijkstra</strong>’s shortest-path algorithm under Options to compare
-                    the two. Preferences such as less walking or fewer transfers change the search.
+                    the earliest arrival in rounds, one per vehicle you board. Preferences such as less walking or fewer
+                    transfers change the search.
                 </p>
             </Card>
 
@@ -91,8 +89,8 @@ export default function About() {
 
             <Card title="Who built it">
                 <p className="text-sm text-mist-700">
-                    WayFound was built as a CSC3003S capstone project by Evian McKeown, Shaylen Naidoo and Benji Joss.
-                    Questions or ideas? Email <TextLink href="mailto:PathPilot@gmail.com">PathPilot@gmail.com</TextLink>.
+                    WayFound is designed and built by EJMLabs. Questions, ideas or something wrong?{" "}
+                    <TextLink to="/report">Get in touch</TextLink>.
                 </p>
             </Card>
         </Page>

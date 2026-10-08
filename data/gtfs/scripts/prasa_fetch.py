@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT.parent / "raw" / "prasa"
 MANIFEST = ROOT / "sources" / "prasa_manifest.csv"
 API = "https://www.prasa.com/admin/wp-json/wp/v2/media"
-UA = {"User-Agent": "PathPilot-capstone/1.0 (student journey planner; low-rate, cached)"}
+UA = {"User-Agent": "WayFound/1.0 (Cape Town journey planner; low-rate, cached)"}
 DELAY_S = 1.0
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

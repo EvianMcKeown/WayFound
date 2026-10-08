@@ -8,7 +8,6 @@ urlpatterns = [
     path("faq/", views.faq_view, name="faq"),
     path("login/", views.user_login_view, name="login"),
     path("signUp/", views.user_signup_view, name="signup"),
-    # NOTE: MCKEVI001 Tailwind Test Site
     path("tailwind/", views.tailwind_view, name="plan"),
     # path(
     #    # Redirect root URL to plan view

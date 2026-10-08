@@ -31,7 +31,9 @@ export function frameSink({ out, fps, width, height }) {
     const sum = new Uint32Array(size);
     let summed = 0;
 
+    let last = null;
     function emit(frame) {
+        last = frame;
         if (!encoder.stdin.write(frame)) {
             decoder.stdout.pause();
             encoder.stdin.once("drain", () => decoder.stdout.resume());
@@ -65,6 +67,7 @@ export function frameSink({ out, fps, width, height }) {
 
     return {
         frame(n) { counts.push(n); },
+        last() { return last; },
         async shot(jpeg) {
             if (!decoder.stdin.write(jpeg)) await once(decoder.stdin, "drain");
         },

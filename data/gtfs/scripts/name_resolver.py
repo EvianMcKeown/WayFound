@@ -14,7 +14,7 @@ from pathlib import Path
 
 from validate_gtfs import haversine_m
 
-UA = {"User-Agent": "PathPilot-capstone/1.0 (student journey planner; low-rate, cached)"}
+UA = {"User-Agent": "WayFound/1.0 (Cape Town journey planner; low-rate, cached)"}
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
 VIEWBOX = "18.25,-33.40,19.15,-34.45"
 DELAY_S = 1.1

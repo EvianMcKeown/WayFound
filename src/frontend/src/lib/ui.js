@@ -22,12 +22,6 @@ const BUTTON_SIZE = { md: "min-h-11 px-4", sm: "min-h-10 px-3", icon: "h-11 w-11
 export const buttonClass = (variant = "primary", size = "md") =>
     `${BUTTON_BASE} ${BUTTON_VARIANT[variant]} ${BUTTON_SIZE[size]}`;
 
-export const segmentGroupClass = "inline-flex rounded-lg border border-mist-300 bg-white/80 p-0.5";
-export const segmentClass = (active) =>
-    `rounded-md px-3 py-1 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 ${
-        active ? "bg-brand-700 text-white shadow-sm" : "text-mist-700 hover:bg-mist-100"
-    }`;
-
 export const linkClass = "font-medium text-brand-700 hover:underline";
 
 export const labelClass = "mb-1 block text-xs font-medium text-mist-700";
@@ -36,5 +30,3 @@ export const alertClass = (error) =>
     `rounded-xl border px-3 py-2 text-sm backdrop-blur-md ${
         error ? "border-danger-200 bg-danger-50/85 text-danger-800" : "border-success-200 bg-success-50/85 text-success-800"
     }`;
-
-export const foundClass = "bg-linear-to-r from-brand-500 to-brand-700 bg-clip-text text-transparent";

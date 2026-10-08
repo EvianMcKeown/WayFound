@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT.parent / "raw" / "gabs"
 MANIFEST = ROOT / "sources" / "gabs_manifest.csv"
 BASE = "https://www.gabs.co.za/"
-UA = {"User-Agent": "PathPilot-capstone/1.0 (student journey planner; low-rate, cached)"}
+UA = {"User-Agent": "WayFound/1.0 (Cape Town journey planner; low-rate, cached)"}
 DELAY_S = 1.0
 PDF_RE = re.compile(r"Pdf/(\w+)/(.+)_from_(\d{8})_to_(\d{8})_(\d{6})\.pdf")
 

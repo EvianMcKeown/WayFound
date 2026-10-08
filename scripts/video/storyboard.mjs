@@ -49,7 +49,7 @@ export default function storyboard(api) {
     }
     const scrollAside = (where) => (where === "top" || where === "bottom" ? scrollTo("aside li", where) : scrollTo(`aside ${where}`));
 
-    async function switchDevice(device, path, { ms = 900, hold = 200, mode = "fade" } = {}) {
+    async function loadDevice(device, path) {
         await ev(`stage.prepare(${q(device)})`);
         await ev(`stage.load(${q(origin + path)})`);
         await waitFor(`!!stage.app().querySelector("header")`, "app header");
@@ -60,21 +60,38 @@ export default function storyboard(api) {
             await ev("stage.captionSide(false)");
         }
         await waitMap();
+    }
+    async function crossTo(device, { ms = 900, hold = 200, mode = "fade" } = {}) {
         await wait(hold);
         await dissolveTo(device === "phone" ? PHONE_ZOOM : 1, ms, mode);
     }
 
     const scenes = {
-        async intro() {
+        intro: {
+          async setup() {
+            await ev("stage.cardPre('Every bus and train. One map.')");
+            await ev("stage.fade(true, 0)");
+          },
+          async play() {
+            await ev("stage.fade(false, 600)");
+            await wait(300);
             await ev(`stage.load(${q(origin + "/")})`);
             await ev("stage.card(true, 'Every bus and train. One map.')");
             await waitFor(`!!stage.app().querySelector("header")`, "app header");
             await waitMap();
             await wait(200);
             await ev("stage.reveal()");
+          },
         },
 
-        async desktop() {
+        desktop: {
+          async setup() {
+            await ev(`stage.load(${q(origin + "/")})`);
+            await waitFor(`!!stage.app().querySelector("header")`, "app header");
+            await waitMap();
+            await ev("stage.reveal()");
+          },
+          async play() {
             await ev("stage.card(false)");
             await ev("stage.deviceIn(300)");
             await caption("Start <b>anywhere</b> in Cape Town");
@@ -149,11 +166,16 @@ export default function storyboard(api) {
             await wait(1600);
             await caption(null);
             await home(1000);
+          },
         },
 
-        async phone() {
+        phone: {
+          carry: "ghost",
+          savedFrom: "desktop",
+          setup: () => loadDevice("phone", "/"),
+          async play() {
             await ev("stage.card(false)");
-            await switchDevice("phone", "/");
+            await crossTo("phone");
             await caption("Your whole city, <b>in your pocket</b>");
             await wait(1500);
 
@@ -193,11 +215,15 @@ export default function storyboard(api) {
             await waitMap();
             await wait(1800);
             await caption(null);
+          },
         },
 
-        async outro() {
+        outro: {
+          carry: "cam",
+          async play() {
             await ev("stage.card(true, 'Your next trip, planned in seconds.')");
             await wait(2900);
+          },
         },
     };
     return scenes;

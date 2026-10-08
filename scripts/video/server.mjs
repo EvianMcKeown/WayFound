@@ -62,7 +62,7 @@ function geocode(q) {
     return PLACES.filter((p) => words.every((w) => p.label.toLowerCase().includes(w)));
 }
 
-export function startServer({ dist, stageDir, port = 4180, backend = "http://127.0.0.1:8000" }) {
+export function startServer({ dist, stageDir, port = 4180, backend = "http://127.0.0.1:8000", seed = null }) {
     const indexHtml = readFileSync(join(dist, "index.html"), "utf8").replace("<head>", `<head>${CLOCK}`);
     const saved = [];
 
@@ -91,7 +91,7 @@ export function startServer({ dist, stageDir, port = 4180, backend = "http://127
                 saved.unshift(route);
                 return void send(res, 201, JSON.stringify(route), TYPES[".json"]);
             }
-            if (url.pathname === "/api/saved-routes/") return void send(res, 200, JSON.stringify(saved.length ? saved : [FILMED_TRIP]), TYPES[".json"]);
+            if (url.pathname === "/api/saved-routes/") return void send(res, 200, JSON.stringify(saved.length ? saved : [seed ?? FILMED_TRIP]), TYPES[".json"]);
             if (url.pathname === "/api/geocode/") return void send(res, 200, JSON.stringify(geocode(url.searchParams.get("q") ?? "")), TYPES[".json"]);
             if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/admin/")) {
                 const chunks = [];
@@ -110,5 +110,5 @@ export function startServer({ dist, stageDir, port = 4180, backend = "http://127
             send(res, 500, String(err), "text/plain");
         }
     });
-    return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve({ server, origin: `http://127.0.0.1:${port}` })));
+    return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve({ server, origin: `http://127.0.0.1:${port}`, saved: () => saved })));
 }

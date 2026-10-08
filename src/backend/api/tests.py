@@ -247,13 +247,12 @@ class PlanEndpointTests(APITestCase):
             self.assertFalse(a["mode"] == b["mode"] == "transfer", f"two walks in a row: {a} {b}")
 
     def test_train_journey_walks_straight_to_the_station(self):
-        for use_dijkstra in (False, True):
-            data = self.plan(self.CT_STATION, self.CLAREMONT, use_dijkstra=use_dijkstra)
-            steps = data["path_objs"]
-            self.assert_walks_only_at_the_ends(steps)
-            rides = [s for s in steps if s["mode"] == "trip"]
-            self.assertEqual(len(rides), 1)
-            self.assertTrue(rides[0]["route_id"].startswith("mr_"))
+        data = self.plan(self.CT_STATION, self.CLAREMONT)
+        steps = data["path_objs"]
+        self.assert_walks_only_at_the_ends(steps)
+        rides = [s for s in steps if s["mode"] == "trip"]
+        self.assertEqual(len(rides), 1)
+        self.assertTrue(rides[0]["route_id"].startswith("mr_"))
 
     def test_access_walk_counts_towards_arrival(self):
         data = self.plan(self.CT_STATION, self.CLAREMONT)
@@ -303,10 +302,6 @@ class PlanEndpointTests(APITestCase):
         for n in (0, 6):
             resp = self.client.post("/api/plan/", {**body, "alternatives": n}, format="json")
             self.assertEqual(resp.status_code, 400)
-
-    def test_dijkstra_has_no_alternatives(self):
-        data = self.plan(self.GUGULETHU, self.WATERFRONT, alternatives=5, use_dijkstra=True)
-        self.assertNotIn("journeys", data)
 
     def test_walk_only_trip_has_no_alternatives(self):
         data = self.plan(self.CT_STATION, (-33.9250, 18.4230), alternatives=5)

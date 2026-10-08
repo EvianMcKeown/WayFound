@@ -86,7 +86,6 @@ function reportContext(journey) {
     return {
         source: "journey",
         request: journey.request,
-        algorithm: journey.algorithm,
         departure: journey.departure,
         arrival: journey.arrival,
         option: { rank: journey.rank ?? 0, signature: journey.signature ?? null },
@@ -97,20 +96,17 @@ function reportContext(journey) {
 }
 
 export function TripHeadline({ journey }) {
-    const { summary, arrival, departure, algorithm } = journey;
+    const { summary, arrival, departure } = journey;
     return (
         <div className="tabular-nums">
             <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                 <p className="whitespace-nowrap text-3xl font-bold tracking-tight text-mist-900">{formatDuration(summary.duration)}</p>
-                <span className="flex items-center gap-1.5">
-                    {journey.avoiding > 0 && (
-                        <span className="flex items-center gap-1 whitespace-nowrap rounded-full bg-mist-100 px-2 py-0.5 text-xs font-medium text-mist-700" title={journey.avoidingNames}>
-                            <BanIcon className="h-3 w-3 text-danger-700" />
-                            Avoiding {journey.avoiding}
-                        </span>
-                    )}
-                    <span className="rounded-full bg-mist-100 px-2 py-0.5 text-xs font-medium text-mist-700">{algorithm}</span>
-                </span>
+                {journey.avoiding > 0 && (
+                    <span className="flex items-center gap-1 whitespace-nowrap rounded-full bg-mist-100 px-2 py-0.5 text-xs font-medium text-mist-700" title={journey.avoidingNames}>
+                        <BanIcon className="h-3 w-3 text-danger-700" />
+                        Avoiding {journey.avoiding}
+                    </span>
+                )}
             </div>
             <p className="text-sm text-mist-700">
                 {minsToClock(departure)} → {minsToClock(arrival)} · arrive {minsToDayClock(arrival)}

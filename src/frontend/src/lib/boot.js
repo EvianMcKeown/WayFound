@@ -29,37 +29,17 @@ function lift() {
     const root = document.documentElement;
     const splash = document.getElementById("splash");
     clearTimeout(window.__bootSlowTimer);
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const spinnerGone = () => {
-        const spinner = splash.querySelector(".splash-spinner");
-        const from = spinner ? Number(getComputedStyle(spinner).opacity) : 0;
-        if (!from) return Promise.resolve();
-        return spinner
-            .animate([{ opacity: from }, { opacity: 0 }], { duration: ms("duration-base") * from, easing: "ease-out", fill: "forwards" })
-            .finished.catch(() => {});
-    };
-    const swap = () => {
-        splash?.remove();
-        root.classList.remove("booting");
-        root.classList.add("revealing");
-        setTimeout(() => root.classList.remove("revealing"), 1200);
-    };
-    if (reduced || !splash) {
-        swap();
-        return;
-    }
-    if (document.startViewTransition) {
-        spinnerGone().then(() => document.startViewTransition(swap));
+    root.classList.remove("booting");
+    root.classList.add("revealing");
+    setTimeout(() => root.classList.remove("revealing"), ms("duration-reveal") * 2);
+    if (!splash) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        splash.remove();
         return;
     }
     splash.classList.add("splash-out");
-    root.classList.remove("booting");
-    root.classList.add("revealing");
-    splash.addEventListener("animationend", () => splash.remove(), { once: true });
-    setTimeout(() => {
-        splash.remove();
-        root.classList.remove("revealing");
-    }, 1200);
+    splash.addEventListener("animationend", (e) => e.target === splash && splash.remove());
+    setTimeout(() => splash.remove(), ms("duration-reveal") * 2);
 }
 
 let started = false;
@@ -70,9 +50,11 @@ export function revealWhenReady() {
 }
 
 async function reveal() {
-    const logo = new Image();
-    logo.src = "/logo.svg";
-    holdBoot(logo.decode());
+    for (const src of ["/logo.svg", "/wordmark.svg"]) {
+        const img = new Image();
+        img.src = src;
+        holdBoot(img.decode());
+    }
     holdBoot(document.fonts?.load('1em "IBM Plex Sans"'));
     const cap = new Promise((resolve) => setTimeout(resolve, Math.max(0, MAX_WAIT_MS - performance.now())));
     await Promise.race([settled(), cap]);

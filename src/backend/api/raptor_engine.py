@@ -27,7 +27,6 @@ from algorithm_prototype.raptor import (
     AREA_RADIUS_M,
     AREA_WALK_ALLOWANCE_M,
 )
-from algorithm_prototype.dijkstra import dijkstra_algo, _reconstruct_dijkstra_path
 
 
 def to_mins(day: int, time_str: str) -> int:
@@ -362,7 +361,6 @@ class RaptorEngine:
         max_rounds: int = 5,
         custom_max_walk_dist: Optional[int] = None,
         debug: bool = False,
-        use_dijkstra: bool = False,
         minimize_walking: bool = False,
         minimize_stops: bool = False,
         alternatives: int = 1,
@@ -407,8 +405,7 @@ class RaptorEngine:
             # minimize number of transfers by setting max_rounds to a low value
             max_rounds = 3
 
-        algo = dijkstra_algo if use_dijkstra else raptor_algo
-        prepared = None if use_dijkstra else prepare_network(search_stops, self.routes, search_transfers)
+        prepared = prepare_network(search_stops, self.routes, search_transfers)
 
         excluded, unknown_lines = self.resolve_exclusions(exclude_modes, exclude_lines)
 
@@ -422,10 +419,11 @@ class RaptorEngine:
                 departure_time=departure_minutes,
                 max_rounds=max_rounds,
                 debug=debug,
+                prepared=prepared,
+                banned_routes=set(banned) | (set() if ignore_exclusions else excluded),
+                latest_arrival=latest_arrival,
             )
-            if prepared is not None:
-                kwargs.update(prepared=prepared, banned_routes=set(banned) | (set() if ignore_exclusions else excluded), latest_arrival=latest_arrival)
-            result, path = algo(**kwargs)
+            result, path = raptor_algo(**kwargs)
             arrival = result.get(VIRTUAL_END, INF)
             return result, ([] if arrival == INF else (path or []))
 
@@ -467,13 +465,13 @@ class RaptorEngine:
             "unknown_lines": unknown_lines,
             "routes_banned": len(excluded),
         }
-        if not path and excluded and not use_dijkstra:
+        if not path and excluded:
             free_result, free_path = run(ignore_exclusions=True)
             if free_path:
                 out["blocked_by_exclusions"] = True
                 out["blocked_by"] = self._blockers(free_path, exclude_modes, exclude_lines)
 
-        if alternatives > 1 and not use_dijkstra and path:
+        if alternatives > 1 and path:
             found = self._alternatives(run, (result, path), departure_minutes, alternatives)
             out["journeys"] = [
                 {**package(r, p), **meta} for r, p, meta in found

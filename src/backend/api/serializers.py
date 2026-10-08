@@ -174,7 +174,6 @@ class PlanRequestSerializer(serializers.Serializer):
     max_rounds = IntegerField(required=False, default=5)
     departure_minutes = IntegerField(required=False)
     debug = serializers.BooleanField(required=False, default=False)
-    use_dijkstra = serializers.BooleanField(required=False, default=False)
     minimize_walking = serializers.BooleanField(required=False, default=False)
     minimize_stops = serializers.BooleanField(required=False, default=False)
     alternatives = IntegerField(required=False, default=1, min_value=1, max_value=5)

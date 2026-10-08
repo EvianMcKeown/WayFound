@@ -10,12 +10,13 @@ import PlaceSearch from "../components/PlaceSearch";
 import { Refreshing, ResultCard, Spinner, TripSkeleton } from "../components/TripLoading";
 import { apiFetch } from "../lib/api";
 import { holdBoot } from "../lib/boot";
+import useFlash from "../lib/useFlash";
 import { getSession, useSession } from "../lib/auth";
 import { buildLegs, buildOption, summarise } from "../lib/journey";
 import { readPlannerLink } from "../lib/plannerLink";
 import { NO_AVOID, avoidCount, avoidFromPrefs, avoidNames, avoidToPlan, avoidToPrefs, lineName, sameAvoid, withLine, withMode, withoutLine } from "../lib/transport";
 import { DAYS, nowAsPlannerInput } from "../lib/time";
-import { Alert, Button, Checkbox, Field, Panel, Segmented } from "../components/ui";
+import { Alert, Button, Checkbox, Field, Panel } from "../components/ui";
 import { ChevronIcon, CloseIcon, EditIcon, LocateIcon, SearchIcon, SwapIcon } from "../components/icons";
 
 const OVERLAY_QUERY = "(min-width: 1024px)";
@@ -26,10 +27,11 @@ const MIN_LOADING_MS = 1000;
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const painted = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 const loadingFloor = () => painted().then(() => pause(MIN_LOADING_MS));
-const ALGORITHMS = [
-    { label: "RAPTOR", value: false },
-    { label: "Dijkstra", value: true },
-];
+const LOCATE_ERRORS = {
+    1: "Location access is off for this site. Allow it in your browser's settings (on an iPhone: Settings › Privacy & Security › Location Services › Safari Websites).",
+    2: "Your location isn't available right now. Try again in a moment.",
+    3: "Finding your location took too long. Try again.",
+};
 
 function useMediaQuery(query) {
     const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
@@ -101,7 +103,6 @@ function SearchForm({ title, onClose, origin, destination, setOrigin, setDestina
                 <div className="mt-3 flex flex-col gap-2 text-sm text-mist-700">
                     <Checkbox label="Minimise walking" checked={options.minimizeWalking} onChange={options.onWalking} />
                     <Checkbox label="Fewer transfers" checked={options.minimizeStops} onChange={options.onStops} />
-                    <Segmented legend="Algorithm" className="mt-1" options={ALGORITHMS} value={options.useDijkstra} onChange={options.setUseDijkstra} />
                     <div className="mt-1 flex flex-col gap-2 border-t border-mist-200 pt-3">
                         <span className="text-sm font-medium text-mist-700">Transport</span>
                         <AvoidTransport avoid={options.avoid} onChange={options.setAvoid} />
@@ -145,7 +146,6 @@ export default function Home() {
     const [{ day, time }, setWhen] = useState(nowAsPlannerInput);
     const [minimizeWalking, setMinimizeWalking] = useState(false);
     const [minimizeStops, setMinimizeStops] = useState(false);
-    const [useDijkstra, setUseDijkstra] = useState(false);
     const [avoid, setAvoidState] = useState(NO_AVOID);
     const [savedAvoid, setSavedAvoid] = useState(NO_AVOID);
     const [savingAvoid, setSavingAvoid] = useState(false);
@@ -155,7 +155,7 @@ export default function Home() {
 
     const [planning, setPlanning] = useState(false);
     const [journey, setJourney] = useState(null);
-    const [message, setMessage] = useState(null);
+    const [message, setMessage, flash] = useFlash();
     const [saving, setSaving] = useState(false);
     const [savedId, setSavedId] = useState(null);
     const planCtrl = useRef(null);
@@ -203,7 +203,6 @@ export default function Home() {
             time,
             minimize_walking: minimizeWalking,
             minimize_stops: minimizeStops,
-            use_dijkstra: useDijkstra,
             ...avoidToPlan(avoidNow),
         };
 
@@ -217,7 +216,6 @@ export default function Home() {
             max_rounds: 5,
             minimize_walking: minimizeWalking,
             minimize_stops: minimizeStops,
-            use_dijkstra: useDijkstra,
             ...avoidToPlan(avoidNow),
         };
         lastPlan.current = { from, to, departure, body };
@@ -240,7 +238,7 @@ export default function Home() {
             const data = await apiFetch("/api/plan/", {
                 method: "POST",
                 signal: ctrl.signal,
-                body: alt && !useDijkstra ? { ...body, alternatives: ALTERNATIVES } : body,
+                body: alt ? { ...body, alternatives: ALTERNATIVES } : body,
             });
             if (!(await settle())) return;
             const pathObjs = data.path_objs || [];
@@ -259,7 +257,6 @@ export default function Home() {
                 departure,
                 arrival: data.earliest_arrival,
                 summary: summarise(built, departure, data.earliest_arrival),
-                algorithm: data.algorithm_used,
                 areaRadius: data.area_radius_m,
                 avoiding: avoidCount(applied),
                 avoidingNames: avoidNames(applied).join(", "),
@@ -371,17 +368,24 @@ export default function Home() {
 
     const [locating, setLocating] = useState(false);
     const locateMe = () => {
+        if (!window.isSecureContext || !navigator.geolocation) {
+            setMessage({
+                text: window.isSecureContext ? "This browser can't share your location." : "Your location is only available when WayFound is opened over a secure (https) connection.",
+                error: true,
+            });
+            return;
+        }
         setLocating(true);
-        navigator.geolocation?.getCurrentPosition(
+        navigator.geolocation.getCurrentPosition(
             (pos) => {
                 setLocating(false);
                 setOrigin({ label: "My location", lat: pos.coords.latitude, lon: pos.coords.longitude });
             },
-            () => {
+            (err) => {
                 setLocating(false);
-                setMessage({ text: "Could not get your location.", error: true });
+                setMessage({ text: LOCATE_ERRORS[err.code] ?? "Could not get your location.", error: true });
             },
-            { timeout: 8000 }
+            { timeout: 10000, maximumAge: 60000 }
         );
     };
 
@@ -485,8 +489,6 @@ export default function Home() {
         options: {
             minimizeWalking,
             minimizeStops,
-            useDijkstra,
-            setUseDijkstra,
             onWalking: setOption(setMinimizeWalking),
             onStops: setOption(setMinimizeStops),
             avoid,
@@ -498,7 +500,7 @@ export default function Home() {
             savingAvoid,
         },
     };
-    const supportsCompare = journey?.status === "ok" && !journey.request.use_dijkstra;
+    const supportsCompare = journey?.status === "ok";
     const toggleDesktop = () => {
         if (!compareOpen && (alts.status === "idle" || alts.status === "error")) loadAlternatives();
         setCompareOpen((o) => !o);
@@ -516,7 +518,7 @@ export default function Home() {
         onRetry: loadAlternatives,
     });
     const alert = message && (
-        <Alert tone={message.error ? "error" : "success"} role="status" className="pointer-events-auto">
+        <Alert tone={message.error ? "error" : "success"} role="status" {...flash} className={`pointer-events-auto ${flash.className}`}>
             {message.text}
             {message.undo && (
                 <button type="button" onClick={message.undo} className="ml-2 font-semibold underline underline-offset-2 hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40">

@@ -263,7 +263,7 @@ def check_water(stops, coords, report, tile_url, zoom=12, margin_deg=0.0015):
         print("--water needs: pip install mapbox-vector-tile shapely", file=sys.stderr)
         sys.exit(2)
 
-    ua = {"User-Agent": "PathPilot-gtfs-validator/1.0"}
+    ua = {"User-Agent": "WayFound-gtfs-validator/1.0"}
     fetch = lambda url: urllib.request.urlopen(urllib.request.Request(url, headers=ua), timeout=30).read()
     if not tile_url:
         tile_url = json.loads(fetch("https://tiles.openfreemap.org/planet"))["tiles"][0]

@@ -131,7 +131,7 @@ SIMPLE_JWT = {
 }
 
 GEOCODER_URL = "https://photon.komoot.io/api/"
-GEOCODER_USER_AGENT = "PathPilot-capstone/1.0"
+GEOCODER_USER_AGENT = "WayFound/1.0"
 
 
 # ----------------------------

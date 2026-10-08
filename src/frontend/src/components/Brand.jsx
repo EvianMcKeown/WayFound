@@ -1,6 +1,4 @@
 import { Link } from "react-router-dom";
-import { foundClass } from "../lib/ui";
-
 const SMALL_ICON = "drop-shadow-sm";
 const LARGE_ICON = "bg-white shadow-md ring-1 ring-brand-100";
 const FLAT_ICON = "drop-shadow-sm";
@@ -11,11 +9,12 @@ const SIZES = {
     xl: { logo: "h-24 w-24 rounded-3xl", src: "/logo.svg", icon: LARGE_ICON, word: "text-4xl sm:text-5xl", tag: "text-base" },
 };
 
-export function Wordmark({ gradient = true, className = "" }) {
+export function Wordmark({ drawn = true, alt = "", className = "" }) {
+    if (drawn) return <img src="/wordmark.svg" alt={alt} className={`wordmark ${className}`} />;
     return (
         <span className={`font-bold tracking-tight ${className}`}>
             <span className="text-mist-900">Way</span>
-            <span className={gradient ? foundClass : "text-brand-700"}>Found</span>
+            <span className="text-brand-700">Found</span>
         </span>
     );
 }
@@ -26,7 +25,7 @@ export default function Brand({ size = "md", stacked = false, tagline = true, to
         <>
             <img src={s.src} alt="" className={`${s.logo} ${s.icon} shrink-0`} />
             <span className={`flex flex-col leading-none ${stacked ? "items-center" : ""}`}>
-                <Wordmark gradient={size !== "sm"} className={s.word} />
+                <Wordmark drawn={size !== "sm"} className={s.word} />
                 {tagline && s.tag && (
                     <span className={`mt-1 font-medium text-mist-600 ${s.tag}`}>
                         Cape Town Journey Planner
