@@ -26,6 +26,8 @@ Unlike traditional shortest-path algorithms (e.g., Dijkstra's), RAPTOR works in 
 - Avoid transport: switch an operator (MyCiTi, Golden Arrow, Metrorail) off, or search for a single line (a MyCiTi number, a Metrorail line, a Golden Arrow pair of places) and the planner leaves it out. "Avoid" on a ride in the result does the same in one tap, with Undo. If nothing is found because of what is avoided, the result says which one is in the way and offers to allow it. Signed-in riders can keep their choices as defaults.  
 - Compare routes: the best route is the default, and "Compare routes" shows up to four more, ranked by arrival time and labelled "Fastest", "Fewest transfers" and "Least walking". Choose any of them as the route in use; a saved route remembers the choice.  
 - Legs are shown per operator, each in its own colour (MyCiTi, Golden Arrow, Metrorail) with a walk, bus or train badge.  
+- Every ride says which way the vehicle is going, as on its front: "Bus 113 towards Waterfront". MyCiTi's timetable tells its two directions apart only by a suffix (`113-0`, `113-1`), which riders never see, so the planner names the trip's last stop instead.  
+- Cape Town only, and says so: the planner and the address search cover the city's transit network (a box around every stop with a few kilometres to spare), and a place outside it gets "outside the area WayFound covers" rather than a misleading "no route".  
 - Responsive layout: floating panels over the map on desktop, a map-first bottom sheet on mobile.  
 - Small, calm animations: icons that turn, pulse and morph, a route that fades in on the map, and legs that rise in one by one. They are switched off for anyone who prefers reduced motion.  
 - Accounts (JWT sign-in with token refresh), saved routes that can be renamed and re-planned, and saved journey preferences.  
@@ -129,10 +131,22 @@ npm run preview                     # http://localhost:4173, forwards /api and /
 ```
 A real host must send unknown paths to `index.html` (the client-side routes `/login`, `/signup`, `/faq`, ...) and forward `/api` to Django. To point a build at another backend, set `VITE_API_BASE_URL` when building.
 
+### Deploying the backend
+With no environment variables set, Django runs as a development server (debug pages, any host, a development-only key). For a real server:
+```bash
+export DJANGO_DEBUG=0
+export DJANGO_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(50))')"
+export DJANGO_ALLOWED_HOSTS=wayfound.example
+export DJANGO_HTTPS=1                       # once it is served over HTTPS: redirect, secure cookies, HSTS
+export DJANGO_CORS_ORIGINS=https://...      # only if the frontend is on another origin
+python manage.py check --deploy
+```
+Django refuses to start with `DJANGO_DEBUG=0` and no secret key or allowed hosts.
+
 ### Tests and checks
 ```bash
 pytest algorithm_prototype/tests                  # from the repo root: RAPTOR, GTFS pipeline
-cd src/backend && python manage.py test api       # API: sign-up, token refresh, saved routes, preferences, reports
+cd src/backend && python manage.py test api       # API: planning, accounts, saved routes, preferences, reports, input validation, rate limits
 cd src/frontend && npm run lint                   # ESLint
 ```
 
@@ -197,6 +211,10 @@ Operator colours: MyCiTi `#0a5689`, Golden Arrow `#fa8c26`, Metrorail `#00b0df`.
 
 ## Security notes
 
-- The development settings are for local use only: `DEBUG = True`, `ALLOWED_HOSTS = ["*"]` and a development `SECRET_KEY` in `src/backend/backend/settings.py`. Set a new secret key, turn debug off and restrict the allowed hosts before any real deployment.
+- Without the environment variables above, the settings are for local use only (debug on, any host, any origin, a development key). See "Deploying the backend".
+- Every API input is validated, so bad input gets a 400 that says what is wrong, never a server error: coordinates must be in the service area, times 00:00 to 23:59, and search limits in range.
+- Rate limits per client: planning 30 a minute, line search 120 a minute, address search 60 a minute, sign-in 10 a minute, sign-up, password changes and issue reports 5 an hour. They are counted in Django's cache, so a server with several processes needs a shared cache (for example Redis).
+- The timetable tables (`/api/stops/`, `/api/routes/`, ...) are read-only through the API and paged; they change only through `load_gtfs` and the Django admin.
+- Changing your password signs you out on every other device.
 - Local databases (`*.sqlite3`) are git-ignored. Never commit one: it holds accounts, password hashes and sessions.
 - Personal access tokens belong in your own tool configuration, never in the repository.
