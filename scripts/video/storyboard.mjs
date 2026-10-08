@@ -1,7 +1,7 @@
 const PHONE_ZOOM = 1.16;
 
 export default function storyboard(api) {
-    const { ev, wait, caption, click, clickHere, pointer, type, waitRect, waitFor, waitMap, focus, home, union, rectsOf, dissolveTo, origin, q } = api;
+    const { ev, wait, caption, click, clickHere, pointer, type, waitRect, waitFor, waitMap, focus, home, union, rectsOf, dissolveTo, poster, origin, q } = api;
     const hideCursor = () => ev("stage.showCursor(false)");
     const cursorIn = (x, y) => ev(`stage.cursorIn(${x}, ${y})`);
     const swipe = (x0, y0, x1, y1, ms = 700) => ev(`stage.swipe(${x0}, ${y0}, ${x1}, ${y1}, ${ms})`);
@@ -12,15 +12,40 @@ export default function storyboard(api) {
     };
 
     async function tagLegs() {
-        const items = await ev(`(() => [...stage.app().querySelectorAll("aside li")].map((li) => {
-            const r = li.getBoundingClientRect(), t = li.innerText;
-            // a leg reads "Walk ...", "Train ...", or "Bus ...": MyCiTi routes are numbered (113-1), Golden Arrow ones are named
-            const kind = t.startsWith("Walk") ? ["On foot", "#516153"] : t.startsWith("Train") ? ["Metrorail", "#00b0df"] : /Bus +[0-9]+-[0-9]/.test(t) ? ["MyCiTi", "#0a5689"] : ["Golden Arrow", "#fa8c26"];
-            const a = li.closest("aside").getBoundingClientRect();
-            return { text: kind[0], color: kind[1], x: a.right + 14, y: r.top + 22 };
-        }))()`);
+        const items = await ev(`(() => {
+            const NAMES = { "rgb(81, 97, 83)": "On foot", "rgb(10, 86, 137)": "MyCiTi", "rgb(250, 140, 38)": "Golden Arrow", "rgb(0, 176, 223)": "Metrorail" };
+            return [...stage.app().querySelectorAll("aside li")].map((li) => {
+                const r = li.getBoundingClientRect(), a = li.closest("aside").getBoundingClientRect();
+                const color = getComputedStyle(li.querySelector("span[aria-hidden]:not(.absolute)")).backgroundColor;
+                if (!NAMES[color]) throw new Error("a leg badge has a colour the video does not know: " + color + " (update NAMES in tagLegs)");
+                return { text: NAMES[color], color, x: a.right + 14, y: r.top + 22 };
+            });
+        })()`);
         await ev(`stage.badges(${q(items)})`);
     }
+
+    async function clickIn(sel, text) {
+        const r = await waitRect(sel, text);
+        await cursorIn(r.x + r.w * 0.5, r.y + r.h / 2);
+        await click(sel, text);
+    }
+
+    async function scrollTo(sel, where = "center") {
+        const box = `(() => { const el = stage.app().querySelector(${q(sel)}); let b = el.parentElement;
+            while (b && !(b.scrollHeight > b.clientHeight && /auto|scroll/.test(getComputedStyle(b).overflowY))) b = b.parentElement;
+            return [el, b]; })()`;
+        await ev(`(() => { const [el, b] = ${box}; if (!b) return;
+            const top = ${q(where)} === "top" ? 0 : ${q(where)} === "bottom" ? b.scrollHeight
+                : b.scrollTop + el.getBoundingClientRect().top - b.getBoundingClientRect().top - (b.clientHeight - el.offsetHeight) / 2;
+            b.scrollTo({ top, behavior: "smooth" }); })()`);
+        const pos = `(() => { const [, b] = ${box}; return b ? b.scrollTop : 0; })()`;
+        for (let last = -1, now = await ev(pos); now !== last; ) {
+            last = now;
+            await wait(200);
+            now = await ev(pos);
+        }
+    }
+    const scrollAside = (where) => (where === "top" || where === "bottom" ? scrollTo("aside li", where) : scrollTo(`aside ${where}`));
 
     async function switchDevice(device, path, { ms = 900, hold = 200, mode = "fade" } = {}) {
         await ev(`stage.prepare(${q(device)})`);
@@ -63,7 +88,7 @@ export default function storyboard(api) {
             await click("[role=option]");
             await wait(100);
 
-            await caption("Go <b>anywhere</b> else");
+            await caption("…and end <b>anywhere</b>");
             const to = await ev(`(() => { const e = stage.app().querySelectorAll("input[role=combobox]")[1]; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()`);
             await ev(`stage.moveTo(${to.x + to.w * 0.5}, ${to.y + to.h / 2}, 600)`);
             await clickHere();
@@ -80,28 +105,19 @@ export default function storyboard(api) {
             await waitMap();
             await home(1400);
             await caption("Three operators, <b>one journey</b>");
+            poster();
             await wait(1600);
 
-            await ev(`(() => { const a = stage.app().querySelector("aside"); a.scrollTo({ top: a.scrollHeight, behavior: "smooth" }); })()`);
-            await wait(900);
-            const legs = await rectsOf("aside li");
-            const save = await waitRect("aside button", "Save this route");
+            await scrollAside("bottom");
             await caption("Every operator in <b>its own colour</b>");
-            await focus(union([...legs, save]), { pad: 70, max: 1.6, ms: 1500 });
+            await focus(union(await rectsOf("aside li")), { pad: 70, max: 1.6, ms: 1500 });
             await wait(300);
             await tagLegs();
-            await wait(1700);
-
-            await caption("Taking it again? <b>Save it</b> for next time");
-            await cursorIn(save.x + save.w * 0.5, save.y + save.h / 2);
-            await click("aside button", "Save this route");
-            await waitFor(`[...stage.app().querySelectorAll("aside button")].some((b) => b.textContent.trim() === "Saved")`, "saved");
-            await wait(1500);
+            await wait(1900);
             await ev("stage.clearBadges()");
 
             await caption("Not the best fit? <b>Compare routes</b>");
-            await ev(`(() => { const a = stage.app().querySelector("aside"); a.scrollTo({ top: 0, behavior: "smooth" }); })()`);
-            await wait(900);
+            await scrollAside("top");
             await focus(await waitRect("aside"), { pad: 40, max: 1.4, ms: 1300 });
             await click("aside button", "Compare routes");
             await waitRect("[role=radiogroup]");
@@ -112,28 +128,23 @@ export default function storyboard(api) {
             await waitMap();
             await wait(1600);
 
-            await caption("A line you dislike? <b>Avoid it</b>");
-            await ev(`stage.app().querySelector("aside button[aria-label^='Avoid MyCiTi']").scrollIntoView({ block: "center", behavior: "smooth" })`);
-            for (let last = -1, now = await ev(`stage.app().querySelector("aside").scrollTop`); now !== last; ) {
-                last = now;
-                await wait(250);
-                now = await ev(`stage.app().querySelector("aside").scrollTop`);
-            }
-            const avoidBtn = await waitRect("aside button[aria-label^='Avoid MyCiTi']");
-            await cursorIn(avoidBtn.x + avoidBtn.w * 0.5, avoidBtn.y + avoidBtn.h / 2);
-            await wait(300);
-            await pointer("aside button[aria-label^='Avoid MyCiTi']");
-            await ev("stage.press()");
-            await wait(150);
-            await ev(`stage.app().querySelector("aside button[aria-label^='Avoid MyCiTi']").click()`);
-            await ev("stage.release()");
+            await caption("Rather skip a line? <b>Avoid it</b>");
+            await scrollAside("button[aria-label^='Avoid MyCiTi']");
+            await clickIn("aside button[aria-label^='Avoid MyCiTi']");
             await hideCursor();
             await waitFor(`(stage.app().querySelector("aside")?.innerText ?? "").includes("Avoiding")`, "the trip without that line");
             await waitMap();
-            await ev(`(() => { const a = stage.app().querySelector("aside"); a.scrollTo({ top: 0, behavior: "smooth" }); })()`);
-            await wait(900);
-            await caption("<b>Avoiding 1</b>: that line is left out");
-            await wait(2400);
+            await scrollAside("top");
+            await caption("Re-planned without it. <b>Undo</b> anytime");
+            await wait(2200);
+
+            await caption("Taking it again? <b>Save it</b>");
+            await scrollAside("bottom");
+            await focus(await waitRect("aside button", "Save this route"), { pad: 160, max: 1.6, ms: 1200 });
+            await clickIn("aside button", "Save this route");
+            await hideCursor();
+            await waitFor(`[...stage.app().querySelectorAll("aside button")].some((b) => b.textContent.trim() === "Saved")`, "saved");
+            await wait(1600);
             await caption(null);
             await home(1000);
         },
@@ -144,29 +155,17 @@ export default function storyboard(api) {
             await caption("Your whole city, <b>in your pocket</b>");
             await wait(1500);
 
-            const where = await waitRect("button", "Where to?");
-            await caption("Swipe up to <b>start planning</b>");
-            await swipe(where.x + where.w * 0.5, where.y + where.h / 2, where.x + where.w * 0.5, where.y - 230, 800);
-            await waitRect("#time-sheet");
-            await wait(500);
-
-            await caption("Search any place <b>by name</b>");
-            await tapOn("input[role=combobox]");
-            await type("Gugulethu", 40);
-            await waitRect("[role=option]");
-            await wait(250);
-            await tapOn("[role=option]");
-            await wait(250);
-            const to = await ev(`(() => { const e = stage.app().querySelectorAll("input[role=combobox]")[1]; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()`);
-            await tap(to.x + to.w * 0.4, to.y + to.h / 2);
-            await type("V&A Waterfront", 34);
-            await waitRect("[role=option]");
-            await wait(250);
-            await tapOn("[role=option]");
-            await wait(300);
-            await tapOn("form button[type=submit]");
+            await caption("Saved trips <b>follow you</b>");
+            await tapOn('button[aria-label="Open menu"]');
+            await waitRect("#mobile-nav");
+            await wait(400);
+            await tapOn("#mobile-nav a", "Saved routes");
+            await waitRect("main li");
+            await wait(1100);
+            await tapOn("main li a", "Plan");
             await waitFor(`(stage.app().querySelector('section[aria-label="Journey planner"]')?.innerText ?? "").includes("→")`, "the trip");
             await waitMap();
+            await wait(600);
 
             let s = await waitRect('section[aria-label="Journey planner"]');
             await caption("Swipe up for <b>step-by-step</b> directions");
@@ -186,6 +185,7 @@ export default function storyboard(api) {
             await wait(500);
             await tapOn("label", "Minimise walking");
             await wait(500);
+            await scrollTo("form button[type=submit]");
             await tapOn("form button[type=submit]");
             await waitFor(`(stage.app().querySelector('section[aria-label="Journey planner"]')?.innerText ?? "").includes("→")`, "the new trip");
             await waitMap();

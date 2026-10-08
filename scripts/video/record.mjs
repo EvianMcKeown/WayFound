@@ -1,9 +1,9 @@
 import { spawn, spawnSync } from "node:child_process";
-import { once } from "node:events";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { frameSink } from "./frames.mjs";
 import { startServer } from "./server.mjs";
 import storyboard from "./storyboard.mjs";
 
@@ -14,13 +14,39 @@ const args = Object.fromEntries(
 );
 const OUT = resolve(args.out ?? "help-video");
 const SCALE = Number(args.scale) || 1;
-const FPS = Number(args.fps) || 60;
+const FPS = Number(args.fps) || 30;
 const GPU = (args.gpu ?? "nvidia").toLowerCase();
 const STEP = 1000 / FPS;
+const BLUR = Math.max(1, Math.round(Number(args.blur ?? 32)) || 1);
+const GAP_PX = 1;
+const SHUTTER = BLUR > 1 ? Math.min(1, Math.max(0.05, Number(args.shutter ?? 0.5) || 0.5)) : 1;
 const ONLY = args.only ? new Set(args.only.split(",")) : null;
 const CHROME = args.chrome ?? "google-chrome";
 const PORT = 9300 + Math.floor(Math.random() * 500);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const MAX_WORDS = 6, MIN_CAPTION_MS = 1500;
+const plain = (html) => html.replace(/<[^>]+>/g, "");
+const words = (text) => text.split(/\s+/).filter((w) => /\w/.test(w)).length;
+function checkScript() {
+    const unquote = (s) => JSON.parse(`"${s}"`);
+    const board = [...readFileSync(join(here, "storyboard.mjs"), "utf8").matchAll(/^(?!\s*\/\/).*?\bcaption\(\s*"((?:[^"\\]|\\.)*)"/gm)].map((m) => plain(unquote(m[1])));
+    const script = [...readFileSync(join(here, "script.txt"), "utf8").matchAll(/^\s*CAPTION\s+"([^"]*)"/gm)].map((m) => m[1]);
+    const problems = [];
+    for (let i = 0; i < Math.max(board.length, script.length); i++) {
+        if (board[i] !== script[i]) problems.push(`caption ${i + 1}: storyboard.mjs says ${JSON.stringify(board[i] ?? "(nothing)")}, script.txt says ${JSON.stringify(script[i] ?? "(nothing)")}`);
+    }
+    for (const c of board) if (words(c) > MAX_WORDS) problems.push(`${JSON.stringify(c)} has ${words(c)} words (at most ${MAX_WORDS})`);
+    return problems;
+}
+{
+    const problems = checkScript();
+    for (const p of problems) console.warn("caption check:", p);
+    if (args.check) {
+        console.log(problems.length ? `${problems.length} caption problem(s)` : "captions OK");
+        process.exit(problems.length ? 1 : 0);
+    }
+}
 
 mkdirSync(OUT, { recursive: true });
 const work = mkdtempSync(join(tmpdir(), "wayfound-video-"));
@@ -95,30 +121,33 @@ let budgetDone = null;
 const clock = () => frameCount * STEP;
 const video = join(OUT, "help-video.mp4");
 const rawVideo = join(work, "raw.mp4");
-let encoder = null;
-let encoderDone = null;
-function startEncoder() {
-    encoder = spawn("ffmpeg", ["-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", String(FPS), "-c:v", "mjpeg", "-i", "pipe:0",
-        "-vf", "scale=1920:1080:flags=lanczos,format=yuv420p", "-r", String(FPS),
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "10", "-an", rawVideo], { stdio: ["pipe", "inherit", "inherit"] });
-    encoderDone = new Promise((resolve) => encoder.once("close", resolve));
-    encoder.stdin.on("error", () => {});
-}
+let sink = null;
+let shots = 0;
 async function enableVirtualTime() {
-    startEncoder();
+    sink = frameSink({ out: rawVideo, fps: FPS, width: 1920, height: 1080 });
     on("Emulation.virtualTimeBudgetExpired", () => budgetDone?.());
     await send("Emulation.setVirtualTimePolicy", { policy: "pause" });
     virtual = true;
 }
-async function stepFrame() {
+async function advance(ms) {
     const expired = new Promise((resolve, reject) => {
         budgetDone = resolve;
         setTimeout(() => reject(new Error("page time did not advance (a network request may be stuck)")), 30000).unref();
     });
-    await send("Emulation.setVirtualTimePolicy", { policy: "pauseIfNetworkFetchesPending", budget: STEP });
+    await send("Emulation.setVirtualTimePolicy", { policy: "pauseIfNetworkFetchesPending", budget: ms });
     await expired;
-    const shot = await send("Page.captureScreenshot", { format: "jpeg", quality: 92, optimizeForSpeed: true }, 40000);
-    if (!encoder.stdin.write(Buffer.from(shot.result.data, "base64"))) await once(encoder.stdin, "drain");
+}
+async function stepFrame() {
+    const n = BLUR > 1 ? Math.min(BLUR, Math.max(1, Math.ceil((await evalRaw("stage.motion()")) * SHUTTER / GAP_PX))) : 1;
+    sink.frame(n);
+    if (SHUTTER < 1) await advance(STEP * (1 - SHUTTER));
+    for (let i = 0; i < n; i++) {
+        await advance((STEP * SHUTTER) / n);
+        await evalRaw("stage.tick()");
+        const shot = await send("Page.captureScreenshot", { format: "jpeg", quality: 92, optimizeForSpeed: true }, 40000);
+        await sink.shot(Buffer.from(shot.result.data, "base64"));
+    }
+    shots += n;
     frameCount++;
 }
 async function wait(ms) {
@@ -194,11 +223,13 @@ async function type(text, perChar = 72) {
     }
 }
 let openCue = null;
-async function caption(html, plain) {
+async function caption(html, text) {
     if (openCue) { openCue.end = clock(); openCue = null; }
     await ev(`stage.caption(${q(html)})`);
-    if (html) { openCue = { start: clock(), end: null, text: plain ?? html.replace(/<[^>]+>/g, "") }; cues.push(openCue); }
+    if (html) { openCue = { start: clock(), end: null, text: text ?? plain(html) }; cues.push(openCue); }
 }
+let posterAt = null;
+const poster = () => { posterAt = clock(); };
 const camera = (x, y, z, ms) => ev(`stage.camera(${x}, ${y}, ${z}, ${ms})`);
 const focus = (r, o) => ev(`stage.focus(${q(r)}, ${q(o ?? {})})`);
 const home = (ms) => ev(`stage.home(${ms ?? 1400})`);
@@ -215,9 +246,10 @@ async function dissolveTo(zoom = 1, ms = 900, mode = "fade") {
     await ev(`stage.dissolve(${ms}, ${zoom}, ${q(mode)})`);
 }
 
-const api = { ev, send, wait, caption, click, clickHere, pointer, type, waitRect, waitFor, waitMap, focus, home, camera, union, rectsOf, dissolveTo, origin, q };
+const api = { ev, send, wait, caption, click, clickHere, pointer, type, waitRect, waitFor, waitMap, focus, home, camera, union, rectsOf, dissolveTo, poster, origin, q };
 const scenes = storyboard(api);
 
+const sceneTimes = [];
 try {
     await connect();
     await send("Page.enable");
@@ -230,6 +262,7 @@ try {
     await waitFor("document.readyState === 'complete' && !!window.stage", "stage");
     const renderer = await ev(`(() => { const g = document.createElement("canvas").getContext("webgl2"); const x = g && g.getExtension("WEBGL_debug_renderer_info"); return g ? (x ? g.getParameter(x.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER)) : "no WebGL"; })()`);
     console.log("rendering with:", renderer);
+    console.log(BLUR > 1 ? `motion blur: up to ${BLUR} shots per frame, shutter open ${Math.round(SHUTTER * 360)}°` : "motion blur: off");
     if (GPU !== "software" && !renderer.toLowerCase().includes(GPU)) throw new Error(`wanted a ${GPU} GPU but the browser is using "${renderer}"`);
     await ev("document.fonts.ready.then(() => true)");
     await ev("stage.cardPre('Every bus and train. One map.')");
@@ -241,14 +274,24 @@ try {
     const started = Date.now();
     for (const [name, play] of Object.entries(scenes)) {
         if (ONLY && !ONLY.has(name)) continue;
-        const s0 = Date.now();
-        await play();
-        console.log(`${name}: ${((Date.now() - s0) / 1000).toFixed(1)}s`);
+        const s0 = Date.now(), v0 = clock();
+        try {
+            await play();
+        } catch (err) {
+            const shot = await send("Page.captureScreenshot", { format: "png" }, 20000).catch(() => null);
+            if (shot?.result?.data) {
+                writeFileSync(join(OUT, "failed.png"), Buffer.from(shot.result.data, "base64"));
+                console.error(`the ${name} scene failed ${((clock() - v0) / 1000).toFixed(1)}s in; the stage at that moment is in ${join(OUT, "failed.png")}`);
+            }
+            throw err;
+        }
+        sceneTimes.push({ name, start: v0, end: clock() });
+        console.log(`${name}: ${((clock() - v0) / 1000).toFixed(1)}s of video (rendered in ${((Date.now() - s0) / 1000).toFixed(0)}s)`);
     }
     await caption(null);
     await ev("stage.fade(true, 700)");
     await wait(200);
-    console.log(`rendered ${frameCount} frames (${(clock() / 1000).toFixed(1)}s of video) in ${((Date.now() - started) / 1000).toFixed(0)}s`);
+    console.log(`rendered ${frameCount} frames (${(clock() / 1000).toFixed(1)}s of video, ${shots} screenshots: ${(shots / frameCount).toFixed(2)} a frame) in ${((Date.now() - started) / 1000).toFixed(0)}s`);
 } finally {
     ws?.close();
     chrome.kill();
@@ -257,8 +300,7 @@ try {
 
 if (frameCount < 10) throw new Error("no frames captured");
 const total = frameCount / FPS;
-encoder.stdin.end();
-if ((await encoderDone) !== 0) throw new Error("ffmpeg failed");
+if ((await sink.close()) !== 0) throw new Error("ffmpeg failed");
 
 const barFilter = args["no-bar"]
     ? "format=yuv420p"
@@ -267,10 +309,21 @@ const final = spawnSync("ffmpeg", ["-y", "-loglevel", "error", "-i", rawVideo, .
     "-r", String(FPS), "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-movflags", "+faststart", "-an", video], { stdio: "inherit" });
 if (final.status !== 0) throw new Error("ffmpeg failed (progress bar pass)");
 
-spawnSync("ffmpeg", ["-y", "-loglevel", "error", "-i", video, "-ss", String(Math.min(total - 2, 24)), "-frames:v", "1", "-q:v", "3", join(OUT, "help-video-poster.jpg")]);
+const posterSec = posterAt != null ? Math.min(total - 0.1, posterAt / 1000 + 1) : Math.min(total - 0.1, 2);
+spawnSync("ffmpeg", ["-y", "-loglevel", "error", "-ss", posterSec.toFixed(3), "-i", video, "-frames:v", "1", "-q:v", "3", join(OUT, "help-video-poster.jpg")]);
 
-const stamp = (ms) => { const t = Math.max(0, ms); const h = String(Math.floor(t / 3600000)).padStart(2, "0"), m = String(Math.floor(t / 60000) % 60).padStart(2, "0"), s = String(Math.floor(t / 1000) % 60).padStart(2, "0"), x = String(Math.round(t % 1000)).padStart(3, "0"); return `${h}:${m}:${s}.${x}`; };
+const stamp = (ms) => { const t = Math.max(0, Math.round(ms)); const h = String(Math.floor(t / 3600000)).padStart(2, "0"), m = String(Math.floor(t / 60000) % 60).padStart(2, "0"), s = String(Math.floor(t / 1000) % 60).padStart(2, "0"), x = String(t % 1000).padStart(3, "0"); return `${h}:${m}:${s}.${x}`; };
 writeFileSync(join(OUT, "help-video.vtt"), "WEBVTT\n\n" + cues.filter((c) => c.end).map((c, i) => `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${c.text}\n`).join("\n"));
+
+const mmss = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
+console.log(`\ntimeline (${total.toFixed(1)}s):`);
+for (const s of sceneTimes) {
+    console.log(`  ${mmss(s.start)} - ${mmss(s.end)}  ${s.name.toUpperCase()}`);
+    for (const c of cues.filter((c) => c.end && c.start >= s.start && c.start < s.end)) {
+        const short = c.end - c.start < MIN_CAPTION_MS ? `   <- only ${((c.end - c.start) / 1000).toFixed(1)}s on screen (at least ${MIN_CAPTION_MS / 1000}s)` : "";
+        console.log(`      ${mmss(c.start)}  ${c.text}${short}`);
+    }
+}
 
 if (!args.keep) rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 console.log("wrote", video);

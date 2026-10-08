@@ -12,12 +12,12 @@
   html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #f8f9f8; font-family: "Inter", system-ui, sans-serif; cursor: none; }
   #world { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(135deg, #effaf0 0%, #ffffff 45%, #dff5e0 100%); }
 
+  #beat { position: absolute; left: 0; top: 0; width: 1px; height: 1px; background: #effaf0; z-index: 100; animation: beat 1s linear infinite; }
+  @keyframes beat { from { opacity: 0.98; } to { opacity: 1; } }
   .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.55; }
-  #blob1 { width: 760px; height: 760px; left: -160px; top: -200px; background: #94dc99; animation: drift1 18s ease-in-out infinite alternate; }
-  #blob2 { width: 640px; height: 640px; right: -120px; bottom: -220px; background: #1bb625; opacity: 0.28; animation: drift2 22s ease-in-out infinite alternate; }
-  #blob3 { width: 520px; height: 520px; right: 220px; top: -240px; background: #00b0df; opacity: 0.16; animation: drift1 26s ease-in-out infinite alternate-reverse; }
-  @keyframes drift1 { to { transform: translate(140px, 90px) scale(1.12); } }
-  @keyframes drift2 { to { transform: translate(-160px, -70px) scale(1.1); } }
+  #blob1 { width: 760px; height: 760px; left: -160px; top: -200px; background: #94dc99; }
+  #blob2 { width: 640px; height: 640px; right: -120px; bottom: -220px; background: #1bb625; opacity: 0.28; }
+  #blob3 { width: 520px; height: 520px; right: 220px; top: -240px; background: #00b0df; opacity: 0.16; }
 
   #cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
   .device { position: absolute; background: #0d120d; overflow: hidden; opacity: 0; scale: 0.97; transform-origin: 50% 50%;
@@ -53,7 +53,7 @@
   #caption.on { opacity: 1; transform: translate(-50%, 0); }
   #caption.side { left: 1230px; bottom: auto; top: 50%; width: 560px; white-space: normal; text-align: left; border-radius: 40px; padding: 30px 42px; font-size: 48px; line-height: 1.2; transform: translate(0, calc(-50% + 18px)); }
   #caption.side.on { transform: translate(0, -50%); }
-  #caption b { color: var(--brand); font-weight: 700; }
+  #caption b { color: var(--brand); font-weight: 700; white-space: nowrap; }
 
   #card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; background: linear-gradient(135deg, #effaf0 0%, #ffffff 50%, #dff5e0 100%); opacity: 0; pointer-events: none; transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1); z-index: 30; text-align: center; }
   #card.on { opacity: 1; }
@@ -72,6 +72,7 @@
 </head>
 <body>
 <div id="world">
+  <div id="beat"></div>
   <div class="blob" id="blob1"></div><div class="blob" id="blob2"></div><div class="blob" id="blob3"></div>
   <div id="cam">
     <div id="dev0" class="device desktop"><iframe id="app0" title="WayFound"></iframe></div>
@@ -311,7 +312,103 @@ const stage = {
   },
   fade(on, ms = 350) { const f = $("fade"); f.style.transition = `opacity ${ms}ms ease`; f.style.opacity = on ? 1 : 0; return sleep(ms + 30); },
 };
+const docs = () => [document, ...slots.map((sl) => { try { return sl.frame.contentDocument; } catch { return null; } })].filter(Boolean);
+
+const BLOBS = [
+  { el: $("blob1"), period: 18000, to: [140, 90, 1.12] },
+  { el: $("blob2"), period: 22000, to: [-160, -70, 1.1] },
+  { el: $("blob3"), period: 26000, to: [140, 90, 1.12], reverse: true },
+];
+function drift(now) {
+  for (const b of BLOBS) {
+    const phase = (now / b.period) % 2;
+    let e = ease.sine(phase < 1 ? phase : 2 - phase);
+    if (b.reverse) e = 1 - e;
+    b.el.style.transform = `translate(${b.to[0] * e}px, ${b.to[1] * e}px) scale(${1 + (b.to[2] - 1) * e})`;
+  }
+}
+drift(performance.now());
+
+stage.tick = () => {
+  drift(performance.now());
+  for (const doc of docs()) {
+    const now = doc.defaultView.performance.now(), since = doc.__lastTick == null ? 0 : now - doc.__lastTick;
+    for (const a of doc.getAnimations()) {
+      let v = a.__virtual;
+      if (!v) {
+        if (a.playState === "paused" || a.effect?.target?.id === "beat") continue;
+        v = a.__virtual = { start: now - Math.min(a.currentTime ?? 0, since) };
+        a.pause();
+      }
+      const t = (now - v.start) * a.playbackRate, end = a.effect?.getComputedTiming().endTime ?? Infinity;
+      if (t >= end) { if (a.playState !== "finished") a.finish(); } else a.currentTime = t;
+    }
+    doc.__lastTick = now;
+  }
+};
+
+const seen = new WeakMap();
+let lastCam = null, lastPointer = null, lastFinger = null, lastMap = null;
+const moved = (a, b) => (a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : 0);
+function rectMoved(el, scale) {
+  const r = el.getBoundingClientRect(), p = seen.get(el);
+  seen.set(el, r);
+  return p ? scale * Math.max(Math.abs(r.left - p.left), Math.abs(r.top - p.top), Math.abs(r.right - p.right), Math.abs(r.bottom - p.bottom)) : 0;
+}
+stage.motion = () => {
+  let px = 0;
+  const z = camera.z;
+  if (lastCam) {
+    for (const [sx, sy] of [[0, 0], [W, 0], [0, H], [W, H]]) {
+      const wx = camera.x + (sx - W / 2) / z, wy = camera.y + (sy - H / 2) / z;
+      px = Math.max(px, moved([sx, sy], [W / 2 + (wx - lastCam.x) * lastCam.z, H / 2 + (wy - lastCam.y) * lastCam.z]));
+    }
+  }
+  lastCam = { ...camera };
+  const pointerNow = cursor.style.opacity === "1" ? stage.screenPos() : null;
+  px = Math.max(px, moved(pointerNow, lastPointer)); lastPointer = pointerNow;
+  const fingerNow = finger.style.opacity === "1" ? stage.toScreen(parseFloat(finger.style.left), parseFloat(finger.style.top)) : null;
+  px = Math.max(px, moved(fingerNow, lastFinger)); lastFinger = fingerNow;
+
+  for (const doc of [document, slots[cur].frame.contentDocument]) {
+    if (!doc) continue;
+    const inApp = doc !== document;
+    if (inApp && !doc.__scrollHooked) {
+      doc.__scrollHooked = true;
+      const tops = new WeakMap();
+      doc.__scrolled = 0;
+      doc.addEventListener("scroll", (e) => {
+        const el = e.target.scrollTop == null ? doc.scrollingElement : e.target;
+        const top = el.scrollTop, before = tops.get(el);
+        tops.set(el, top);
+        if (before != null) doc.__scrolled = Math.max(doc.__scrolled, Math.abs(top - before));
+      }, true);
+    }
+    if (inApp) { px = Math.max(px, z * doc.__scrolled); doc.__scrolled = 0; }
+    for (const a of doc.getAnimations()) {
+      const end = a.effect?.getComputedTiming().endTime ?? Infinity;
+      const el = a.effect?.target;
+      if (end === Infinity || !el || (a.currentTime ?? end) >= end) continue;
+      px = Math.max(px, rectMoved(el, inApp || cam.contains(el) ? z : 1));
+    }
+    if (inApp) {
+      for (const el of doc.querySelectorAll("section[aria-label], #time-sheet, [role=dialog], aside")) px = Math.max(px, rectMoved(el, z));
+      const map = doc.defaultView.__map;
+      if (map?.loaded()) {
+        const { clientWidth: w, clientHeight: h } = map.getCanvas();
+        if (lastMap?.map === map) {
+          const [a, b] = lastMap.places.map((p) => map.project(p));
+          px = Math.max(px, z * moved([a.x, a.y], [0, 0]), z * moved([b.x, b.y], [w, h]));
+        }
+        lastMap = { map, places: [map.unproject([0, 0]), map.unproject([w, h])] };
+      }
+    }
+  }
+  return px;
+};
+
 window.stage = stage;
+window.addEventListener("scroll", () => window.scrollTo(0, 0));
 </script>
 </body>
 </html>

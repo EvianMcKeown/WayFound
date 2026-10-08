@@ -19,12 +19,13 @@ const TYPES = {
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const DEMO_TOKEN = `${b64({ alg: "none", typ: "JWT" })}.${b64({ username: "Alex", token_type: "access", exp: 1893456000 })}.demo`;
 
+const CLOCK_BASE = new Date(2026, 9, 6, 8, 0, 0).getTime();
 const CLOCK = `<script>
 window.__WAYFOUND_CAPTURE__ = true;
 try { localStorage.setItem("access", "${DEMO_TOKEN}"); localStorage.setItem("refresh", "${DEMO_TOKEN}"); } catch { /* no storage */ }
 (() => {
     const Real = Date;
-    const base = new Real(2026, 9, 6, 8, 0, 0).getTime(); // Tuesday 6 October 2026, 08:00
+    const base = ${CLOCK_BASE};
     const start = Real.now();
     const now = () => base + (Real.now() - start);
     class FakeDate extends Real {
@@ -49,6 +50,13 @@ const PLACES = [
     { label: "V&A Waterfront Amphitheatre, Cape Town", lat: -33.9031, lon: 18.4192 },
 ];
 
+const [GUGULETHU, WATERFRONT] = [PLACES[0], PLACES[3]];
+const FILMED_TRIP = {
+    id: 1, name: "", created_at: new Date(CLOCK_BASE).toISOString(), route_signature: "",
+    start_location: GUGULETHU.label, origin_lat: GUGULETHU.lat, origin_lon: GUGULETHU.lon,
+    end_location: WATERFRONT.label, dest_lat: WATERFRONT.lat, dest_lon: WATERFRONT.lon,
+};
+
 function geocode(q) {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     return PLACES.filter((p) => words.every((w) => p.label.toLowerCase().includes(w)));
@@ -56,6 +64,7 @@ function geocode(q) {
 
 export function startServer({ dist, stageDir, port = 4180, backend = "http://127.0.0.1:8000" }) {
     const indexHtml = readFileSync(join(dist, "index.html"), "utf8").replace("<head>", `<head>${CLOCK}`);
+    const saved = [];
 
     const send = (res, status, body, type) => {
         res.writeHead(status, { "Content-Type": type, "Cache-Control": "no-store" });
@@ -76,9 +85,13 @@ export function startServer({ dist, stageDir, port = 4180, backend = "http://127
             if (url.pathname.startsWith("/stage/") && serveFile(res, stageDir, url.pathname.slice(7))) return;
             if (url.pathname === "/api/preferences/") return void send(res, 200, JSON.stringify({ minimize_walking: false, minimize_stops: false }), TYPES[".json"]);
             if (url.pathname === "/api/saved-routes/" && req.method === "POST") {
-                req.resume();
-                return void send(res, 201, JSON.stringify({ id: 1 }), TYPES[".json"]);
+                const chunks = [];
+                for await (const c of req) chunks.push(c);
+                const route = { id: saved.length + 1, name: "", created_at: new Date(CLOCK_BASE).toISOString(), ...JSON.parse(Buffer.concat(chunks).toString() || "{}") };
+                saved.unshift(route);
+                return void send(res, 201, JSON.stringify(route), TYPES[".json"]);
             }
+            if (url.pathname === "/api/saved-routes/") return void send(res, 200, JSON.stringify(saved.length ? saved : [FILMED_TRIP]), TYPES[".json"]);
             if (url.pathname === "/api/geocode/") return void send(res, 200, JSON.stringify(geocode(url.searchParams.get("q") ?? "")), TYPES[".json"]);
             if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/admin/")) {
                 const chunks = [];

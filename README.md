@@ -149,13 +149,15 @@ Use a throwaway account created through the sign-up page for the signed-in shots
 ### Help video
 [![WayFound help video: plan a trip on desktop and phone](src/frontend/public/help-video-poster.jpg)](src/frontend/public/help-video.mp4)
 
-*A 65 second silent walkthrough with captions: plan a trip across three operators, save it, then do it again on a phone. Click the picture to play it.*
+*A 78 second silent walkthrough with captions: plan a trip across three operators, compare routes, avoid a line and save it, then open it from Saved routes on a phone. Click the picture to play it.*
 
-The video on the Help page (`src/frontend/public/help-video.mp4`, with a poster and English captions) is rendered by script, so it can be re-shot after a design change. `scripts/video/record.mjs` builds the app, plays a storyboard in a browser with a smoothed pointer, camera zooms, captions and finger gestures, and renders it frame by frame at 60 fps (the browser's clock is paused between frames, so it is smooth however slow the machine is). It needs ffmpeg, a Chrome or Edge, Node 22+ and Django running on :8000.
+The video on the Help page (`src/frontend/public/help-video.mp4`, with a poster and English captions) is rendered by script, so it can be re-shot after a design change. `scripts/video/record.mjs` builds the app, plays a storyboard in a browser with a smoothed pointer, camera zooms, captions and finger gestures, and renders it frame by frame at 30 fps with real motion blur (the browser's clock is paused between frames, so it is smooth however slow the machine is; moving frames get extra screenshots inside the shutter, averaged into one). It needs ffmpeg, a Chrome or Edge, Node 22+ and Django running on :8000.
 ```bash
 node scripts/video/record.mjs --chrome "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" --out src/frontend/public
-node scripts/video/record.mjs --chrome <browser> --out video-test --fps 30 --only phone    # a quick preview of one scene
+node scripts/video/record.mjs --chrome <browser> --out video-test --fps 15 --blur 1 --only phone    # a quick preview of one scene, without blur
+node scripts/video/record.mjs --check    # do storyboard.mjs and script.txt quote the same captions, all short enough?
 ```
+`scripts/video/script.txt` is the script in plain words; `storyboard.mjs` is what is played. Every render checks that their captions agree and prints a timeline of scenes and captions at the end (warning about any caption on screen for under 1.5 s).
 It renders on the graphics card (`--gpu nvidia` by default) and stops if the browser ends up on a different one, such as an integrated GPU; use `--gpu software` for the CPU renderer. A fixed clock (Tuesday 08:00) and fixed address suggestions keep every take identical.
 
 ---
