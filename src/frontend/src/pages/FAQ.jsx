@@ -43,7 +43,7 @@ export default function FAQ() {
                     aria-label="Journey plan walkthrough"
                 >
                     <source src="/help-video.mp4" type="video/mp4" />
-                    <track kind="captions" src="/help-video.vtt" srcLang="en" label="English" default />
+                    <track kind="captions" src="/help-video.vtt" srcLang="en" label="English" />
                 </video>
             </Panel>
 
