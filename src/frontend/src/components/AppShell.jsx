@@ -102,6 +102,7 @@ export default function AppShell({ overlayHeader = false, children }) {
         <div className="relative flex h-dvh w-full flex-col bg-mist-50 text-mist-900 antialiased">
             <header
                 ref={mobileRef}
+                data-reveal="header"
                 className={`relative z-30 shrink-0 border-b border-white/60 ${surfaceClass} ${
                     overlayHeader ? "lg:absolute lg:inset-x-0 lg:top-0" : ""
                 }`}

@@ -29,7 +29,7 @@ export default function Field({
                 {children}
             </Control>
             {error && (
-                <p id={`${id}-error`} className="mt-1 text-xs text-red-700">
+                <p id={`${id}-error`} className="mt-1 text-xs text-danger-700">
                     {error}
                 </p>
             )}

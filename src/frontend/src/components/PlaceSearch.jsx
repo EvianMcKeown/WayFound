@@ -16,8 +16,13 @@ export default function PlaceSearch({ label, value, onChange, placeholder, allow
     const [status, setStatus] = useState("idle");
     const [locating, setLocating] = useState(false);
     const justSelected = useRef(false);
+    const clearedByTyping = useRef(false);
 
     useEffect(() => {
+        if (value == null && clearedByTyping.current) {
+            clearedByTyping.current = false;
+            return;
+        }
         justSelected.current = true;
         setText(value?.label ?? "");
     }, [value]);
@@ -110,7 +115,10 @@ export default function PlaceSearch({ label, value, onChange, placeholder, allow
                     aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
                     onChange={(e) => {
                         setText(e.target.value);
-                        if (value) onChange(null);
+                        if (value) {
+                            clearedByTyping.current = true;
+                            onChange(null);
+                        }
                     }}
                     onFocus={() => options.length && setOpen(true)}
                     onBlur={() => setTimeout(() => setOpen(false), 120)}
@@ -160,7 +168,7 @@ export default function PlaceSearch({ label, value, onChange, placeholder, allow
             )}
             {status === "loading" && <p className="mt-1 text-xs text-mist-600">Searching…</p>}
             {status === "error" && (
-                <p className="mt-1 text-xs text-red-600">Address search is unavailable right now.</p>
+                <p className="mt-1 text-xs text-danger-700">Address search is unavailable right now.</p>
             )}
         </div>
     );

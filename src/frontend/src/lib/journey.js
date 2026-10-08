@@ -1,8 +1,10 @@
+import { cssVar } from "./tokens";
+
 export const MODE_STYLE = {
-    walk: { label: "Walk", operator: "Walking", color: "#516153", glyph: "#ffffff", dash: true },
-    myciti: { label: "Bus", operator: "MyCiTi", color: "#0a5689", glyph: "#ffffff", dash: false },
-    "golden-arrow": { label: "Bus", operator: "Golden Arrow", color: "#fa8c26", glyph: "#1a1f1a", dash: false },
-    metrorail: { label: "Train", operator: "Metrorail", color: "#00b0df", glyph: "#1a1f1a", dash: false },
+    walk: { label: "Walk", operator: "Walking", color: cssVar("color-mist-600"), glyph: cssVar("color-white"), dash: true },
+    myciti: { label: "Bus", operator: "MyCiTi", color: cssVar("color-myciti"), glyph: cssVar("color-white"), dash: false },
+    "golden-arrow": { label: "Bus", operator: "Golden Arrow", color: cssVar("color-golden-arrow"), glyph: cssVar("color-mist-900"), dash: false },
+    metrorail: { label: "Train", operator: "Metrorail", color: cssVar("color-metrorail"), glyph: cssVar("color-mist-900"), dash: false },
 };
 
 const RIDE_KIND = { 0: "myciti", 1: "golden-arrow", 2: "metrorail" };

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="booting">
 
 <head>
   <meta charset="UTF-8" />
@@ -7,14 +7,101 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  <meta name="theme-color" content="#f6f9fe" />
   <title>WayFound</title>
+  <link rel="preload" href="/fonts/plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/logo.svg" as="image" fetchpriority="high" />
+  <style>
+    @font-face {
+      font-family: "IBM Plex Sans";
+      font-style: normal;
+      font-weight: 100 700;
+      font-display: swap;
+      src: url(/fonts/plex-sans-latin.woff2) format("woff2-variations");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: "IBM Plex Sans";
+      font-style: normal;
+      font-weight: 100 700;
+      font-display: swap;
+      src: url(/fonts/plex-sans-latin-ext.woff2) format("woff2-variations");
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    }
 
+    html.booting, html.booting body { overflow: hidden; }
+    html, body { background: #f6f9fe; }
+    #splash {
+      position: fixed; inset: 0; z-index: 2147483647;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+      background: #f6f9fe;
+      font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    #splash .splash-mark {
+      width: 96px; height: 96px; border-radius: 24px; overflow: hidden; background: #fff;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1), 0 0 0 1px #e1ecff;
+    }
+    #splash .splash-mark svg { display: block; width: 100%; height: 100%; }
+    #splash .splash-word { margin: 0; font-size: 30px; line-height: 1; font-weight: 700; letter-spacing: -0.025em; color: #1a1e23; }
+    #splash .splash-word span { color: #104fca; background: linear-gradient(90deg, #2c71f8, #104fca); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    #splash .splash-tag { margin: -12px 0 0; font-size: 14px; font-weight: 500; color: #585c63; }
+    #splash .splash-spinner { width: 22px; height: 22px; margin-top: 8px; }
+    #splash .splash-ring {
+      width: 100%; height: 100%; box-sizing: border-box; border-radius: 50%; will-change: transform;
+      border: 2.5px solid #e1ecff; border-top-color: #104fca;
+      animation: splash-spin 800ms linear infinite;
+    }
+    @media (prefers-reduced-motion: reduce) { #splash .splash-ring { animation-duration: 1.6s; } }
+    #splash .splash-slow { position: absolute; bottom: 48px; margin: 0; padding: 0 16px; text-align: center; font-size: 14px; color: #41444b; visibility: hidden; }
+    #splash .splash-slow a { color: #104fca; font-weight: 500; }
+    #splash.slow .splash-slow { visibility: visible; }
+
+    @media (prefers-reduced-motion: no-preference) {
+      #splash .splash-in { animation: splash-in 400ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both; }
+      #splash .splash-word.splash-in { animation-delay: 280ms; }
+      #splash .splash-tag.splash-in { animation-delay: 340ms; }
+      #splash .splash-spinner.splash-in { animation-delay: 450ms; }
+      #splash.splash-out { animation: splash-out 400ms cubic-bezier(0.22, 1, 0.36, 1) both; pointer-events: none; }
+    }
+    @keyframes splash-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes splash-out { to { opacity: 0; } }
+    @keyframes splash-spin { to { transform: rotate(360deg); } }
+  </style>
+  <script>
+    window.__bootSlowTimer = setTimeout(function () {
+      var s = document.getElementById("splash");
+      if (s) s.className += " slow";
+    }, 10000);
+  </script>
 </head>
 
 <body>
+  <div id="splash" role="status" aria-label="Loading WayFound">
+    <div class="splash-mark splash-in" aria-hidden="true">
+      <svg viewBox="0 0 512 512">
+        <defs>
+          <linearGradient id="splash-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f1f6fe"/></linearGradient>
+          <linearGradient id="splash-line" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#9bbeff"/><stop offset="1" stop-color="#2c71f8"/></linearGradient>
+          <linearGradient id="splash-end" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2c71f8"/><stop offset="1" stop-color="#104fca"/></linearGradient>
+        </defs>
+        <rect width="512" height="512" fill="url(#splash-bg)"/>
+        <g fill="none" stroke="#e1ecff" stroke-width="30" stroke-linecap="round" opacity="0.8">
+          <path d="M178 88C232 150 252 250 238 332"/>
+          <path d="M262 70C282 170 330 262 382 360"/>
+        </g>
+        <path d="M131 396V330C131 272 170 256 240 245" fill="none" stroke="url(#splash-line)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="131" cy="396" r="27" fill="#9bbeff"/>
+        <circle cx="240" cy="245" r="29" fill="#2c71f8"/><circle cx="240" cy="245" r="12" fill="#ffffff"/>
+        <circle cx="293" cy="225" r="10" fill="#2c71f8"/><circle cx="330" cy="203" r="10" fill="#2c71f8"/>
+        <circle cx="373" cy="149" r="45" fill="url(#splash-end)"/><circle cx="373" cy="149" r="17" fill="#ffffff"/>
+      </svg>
+    </div>
+    <p class="splash-word splash-in">Way<span>Found</span></p>
+    <p class="splash-tag splash-in">Cape Town Journey Planner</p>
+    <div class="splash-spinner splash-in" aria-hidden="true"><div class="splash-ring"></div></div>
+    <p class="splash-slow">Taking longer than usual. <a href="">Reload</a></p>
+  </div>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>

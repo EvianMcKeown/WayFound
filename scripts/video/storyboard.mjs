@@ -13,12 +13,14 @@ export default function storyboard(api) {
 
     async function tagLegs() {
         const items = await ev(`(() => {
-            const NAMES = { "rgb(81, 97, 83)": "On foot", "rgb(10, 86, 137)": "MyCiTi", "rgb(250, 140, 38)": "Golden Arrow", "rgb(0, 176, 223)": "Metrorail" };
+            // named by the leg's kind (ModeBadge's data-kind), coloured as the badge is, so palette changes can't break it
+            const NAMES = { walk: "On foot", myciti: "MyCiTi", "golden-arrow": "Golden Arrow", metrorail: "Metrorail" };
             return [...stage.app().querySelectorAll("aside li")].map((li) => {
                 const r = li.getBoundingClientRect(), a = li.closest("aside").getBoundingClientRect();
-                const color = getComputedStyle(li.querySelector("span[aria-hidden]:not(.absolute)")).backgroundColor;
-                if (!NAMES[color]) throw new Error("a leg badge has a colour the video does not know: " + color + " (update NAMES in tagLegs)");
-                return { text: NAMES[color], color, x: a.right + 14, y: r.top + 22 };
+                const badge = li.querySelector("[data-kind]");
+                const kind = badge?.dataset.kind;
+                if (!NAMES[kind]) throw new Error("a leg has a kind the video does not know: " + kind + " (update NAMES in tagLegs)");
+                return { text: NAMES[kind], color: getComputedStyle(badge).backgroundColor, x: a.right + 14, y: r.top + 22 };
             });
         })()`);
         await ev(`stage.badges(${q(items)})`);

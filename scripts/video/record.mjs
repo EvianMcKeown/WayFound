@@ -305,7 +305,7 @@ if ((await sink.close()) !== 0) throw new Error("ffmpeg failed");
 const barFilter = args["no-bar"]
     ? "format=yuv420p"
     : `[0:v]drawbox=x=0:y=ih-6:w=iw:h=6:color=0x1a1f1a@0.14:t=fill[track];[track][1:v]overlay=x='-w+w*min(1,t/${total.toFixed(3)})':y=H-h:shortest=1,format=yuv420p`;
-const final = spawnSync("ffmpeg", ["-y", "-loglevel", "error", "-i", rawVideo, ...(args["no-bar"] ? ["-vf", barFilter] : ["-f", "lavfi", "-i", `color=c=0x1bb625:s=1920x6:r=${FPS}`, "-filter_complex", barFilter]),
+const final = spawnSync("ffmpeg", ["-y", "-loglevel", "error", "-i", rawVideo, ...(args["no-bar"] ? ["-vf", barFilter] : ["-f", "lavfi", "-i", `color=c=0x2c71f8:s=1920x6:r=${FPS}`, "-filter_complex", barFilter]),
     "-r", String(FPS), "-c:v", "libx264", "-preset", "slow", "-crf", "20", "-movflags", "+faststart", "-an", video], { stdio: "inherit" });
 if (final.status !== 0) throw new Error("ffmpeg failed (progress bar pass)");
 

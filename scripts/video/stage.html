@@ -5,28 +5,28 @@
 <title>WayFound stage</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
 <style>
-  :root { --ink: #1a1f1a; --brand: #108418; --mist: #516153; }
+  :root { --ink: #1a1e23; --brand: #104fca; --mist: #585c63; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #f8f9f8; font-family: "Inter", system-ui, sans-serif; cursor: none; }
-  #world { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(135deg, #effaf0 0%, #ffffff 45%, #dff5e0 100%); }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #f6f9fe; font-family: "IBM Plex Sans", system-ui, sans-serif; cursor: none; }
+  #world { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(135deg, #f1f6fe 0%, #ffffff 45%, #e1ecff 100%); }
 
-  #beat { position: absolute; left: 0; top: 0; width: 1px; height: 1px; background: #effaf0; z-index: 100; animation: beat 1s linear infinite; }
+  #beat { position: absolute; left: 0; top: 0; width: 1px; height: 1px; background: #f1f6fe; z-index: 100; animation: beat 1s linear infinite; }
   @keyframes beat { from { opacity: 0.98; } to { opacity: 1; } }
   .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.55; }
-  #blob1 { width: 760px; height: 760px; left: -160px; top: -200px; background: #94dc99; }
-  #blob2 { width: 640px; height: 640px; right: -120px; bottom: -220px; background: #1bb625; opacity: 0.28; }
+  #blob1 { width: 760px; height: 760px; left: -160px; top: -200px; background: #9bbeff; }
+  #blob2 { width: 640px; height: 640px; right: -120px; bottom: -220px; background: #2c71f8; opacity: 0.28; }
   #blob3 { width: 520px; height: 520px; right: 220px; top: -240px; background: #00b0df; opacity: 0.16; }
 
   #cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
-  .device { position: absolute; background: #0d120d; overflow: hidden; opacity: 0; scale: 0.97; transform-origin: 50% 50%;
+  .device { position: absolute; background: #0b1018; overflow: hidden; opacity: 0; scale: 0.97; transform-origin: 50% 50%;
     transition: opacity var(--dev-ms, 600ms) ease-in-out, scale var(--dev-ms, 600ms) cubic-bezier(0.22, 1, 0.36, 1); }
   .device.back { z-index: 2; }
   .device[data-shown="true"] { opacity: 1; scale: 1; }
   .device:not([data-shown="true"]) { pointer-events: none; }
   .device.desktop { border-radius: 16px; box-shadow: 0 40px 100px rgba(16, 40, 18, 0.28), 0 8px 24px rgba(16, 40, 18, 0.18), 0 0 0 1px rgba(16, 40, 18, 0.12); }
-  .device.phone { border-radius: 56px; padding: 12px; background: #11151a; box-shadow: 0 40px 100px rgba(16, 40, 18, 0.35), 0 8px 24px rgba(16, 40, 18, 0.2), inset 0 0 0 2px #2a313a; }
+  .device.phone { border-radius: 56px; padding: 12px; background: #11151a; box-shadow: 0 40px 100px rgba(16, 40, 18, 0.35), 0 8px 24px rgba(16, 30, 60, 0.2), inset 0 0 0 2px #2a313a; }
   .device iframe { display: block; border: 0; background: #fff; contain: paint; }
   .device.desktop iframe { border-radius: 16px; clip-path: inset(0 round 16px); }
   .device.phone iframe { border-radius: 44px; clip-path: inset(0 round 44px); }
@@ -44,7 +44,7 @@
   #finger.down i { scale: 0.82; background: rgba(255, 255, 255, 0.75); }
 
   .badge { position: absolute; display: flex; align-items: center; gap: 10px; padding: 9px 18px 9px 12px; border-radius: 999px; background: #fff; z-index: 3;
-    box-shadow: 0 10px 28px rgba(16, 40, 18, 0.2), 0 0 0 1px rgba(16, 40, 18, 0.08); font: 600 20px/1 "Inter", system-ui, sans-serif; color: #1a1f1a; white-space: nowrap;
+    box-shadow: 0 10px 28px rgba(16, 30, 60, 0.2), 0 0 0 1px rgba(16, 30, 60, 0.08); font: 600 20px/1 "IBM Plex Sans", system-ui, sans-serif; color: #1a1e23; white-space: nowrap;
     opacity: 0; translate: -14px -50%; transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1), translate 420ms cubic-bezier(0.22, 1, 0.36, 1); }
   .badge.on { opacity: 1; translate: 0 -50%; }
   .badge i { width: 14px; height: 14px; border-radius: 50%; background: var(--c); flex: none; }
@@ -55,19 +55,19 @@
   #caption.side.on { transform: translate(0, -50%); }
   #caption b { color: var(--brand); font-weight: 700; white-space: nowrap; }
 
-  #card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; background: linear-gradient(135deg, #effaf0 0%, #ffffff 50%, #dff5e0 100%); opacity: 0; pointer-events: none; transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1); z-index: 30; text-align: center; }
+  #card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; background: linear-gradient(135deg, #f1f6fe 0%, #ffffff 50%, #e1ecff 100%); opacity: 0; pointer-events: none; transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1); z-index: 30; text-align: center; }
   #card.on { opacity: 1; }
-  #card img { width: 150px; height: 150px; border-radius: 36px; background: #fff; box-shadow: 0 18px 50px rgba(16, 40, 18, 0.2), 0 0 0 1px #dff5e0; transform: translateY(14px) scale(0.94); transition: transform 800ms cubic-bezier(0.22, 1, 0.36, 1); }
+  #card img { width: 150px; height: 150px; border-radius: 36px; background: #fff; box-shadow: 0 18px 50px rgba(16, 30, 60, 0.2), 0 0 0 1px #e1ecff; transform: translateY(14px) scale(0.94); transition: transform 800ms cubic-bezier(0.22, 1, 0.36, 1); }
   #card.on img { transform: none; }
   #card h1 { margin: 0; font-size: 104px; line-height: 1; letter-spacing: -0.035em; font-weight: 700; color: var(--ink); }
-  #card h1 .f { color: var(--brand); }
+  #card h1 .f { color: var(--brand); background: linear-gradient(90deg, #2c71f8, #104fca); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   #card p { margin: 0; font-size: 38px; font-weight: 500; color: var(--mist); max-width: 1200px; }
   #card h1, #card p { perspective: 900px; }
   #card .w { display: inline-block; transform-origin: 50% 0; transform: rotateX(-90deg); opacity: 0; transition: transform 750ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i) * 85ms + var(--d)), opacity 350ms ease calc(var(--i) * 85ms + var(--d)); }
   #card.on .w { transform: none; opacity: 1; }
   #card.pre .w { transform: rotateX(-90deg); opacity: 0; transition: none; }
 
-  #fade { position: absolute; inset: 0; background: #f8f9f8; opacity: 0; pointer-events: none; z-index: 25; }
+  #fade { position: absolute; inset: 0; background: #f6f9fe; opacity: 0; pointer-events: none; z-index: 25; }
 </style>
 </head>
 <body>
@@ -78,7 +78,7 @@
     <div id="dev0" class="device desktop"><iframe id="app0" title="WayFound"></iframe></div>
     <div id="dev1" class="device desktop"><iframe id="app1" title="WayFound"></iframe></div>
     <div id="ripple"></div>
-    <svg id="cursor" viewBox="4 2 22 26" width="22" height="26"><path d="M4 2.5 L4 22.5 L9.2 17.6 L12.7 25.8 L16.2 24.3 L12.8 16.2 L19.8 15.9 Z" fill="#fff" stroke="#1a1f1a" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    <svg id="cursor" viewBox="4 2 22 26" width="22" height="26"><path d="M4 2.5 L4 22.5 L9.2 17.6 L12.7 25.8 L16.2 24.3 L12.8 16.2 L19.8 15.9 Z" fill="#fff" stroke="#1a1e23" stroke-width="1.8" stroke-linejoin="round"/></svg>
     <div id="finger"><i></i></div>
   </div>
   <img id="ghost" alt="" />
@@ -196,8 +196,10 @@ const stage = {
   },
   app() { return appFrame().contentDocument; },
   mapIdle() {
-    const m = appFrame().contentWindow.__map;
-    return !!(m && m.loaded() && m.areTilesLoaded() && !m.isMoving());
+    const w = appFrame().contentWindow, d = appFrame().contentDocument;
+    const m = w.__map;
+    const booted = !d.getElementById("splash") && !d.documentElement.classList.contains("revealing");
+    return !!(booted && m && m.loaded() && m.areTilesLoaded() && !m.isMoving());
   },
 
   focus(rect, { pad = 80, max = 2.2, ms = 1400, bias = [0, 0] } = {}) {

@@ -117,6 +117,7 @@ export default function BottomSheet({ label, expanded, onExpandedChange, onHeigh
         <section
             ref={rootRef}
             aria-label={label}
+            data-reveal="sheet"
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={endDrag}
@@ -124,7 +125,7 @@ export default function BottomSheet({ label, expanded, onExpandedChange, onHeigh
             onWheel={onWheel}
             onKeyDown={onKeyDown}
             style={{ height, touchAction: scrollable ? "pan-y" : "none" }}
-            className="absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-3xl bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.14)] transition-[height] duration-[250ms] ease-out motion-reduce:transition-none"
+            className="absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-3xl bg-white shadow-sheet transition-[height] duration-(--duration-slow) ease-out-soft motion-reduce:transition-none"
         >
             {canExpand ? (
                 <button

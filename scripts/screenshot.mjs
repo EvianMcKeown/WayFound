@@ -9,10 +9,15 @@ const args = Object.fromEntries(
 );
 const BASE = args.base ?? "http://localhost:5173";
 const OUT = args.out ?? "screenshots";
-const ONLY = args.only ? new Set(args.only.split(",")) : null;
+const PROOF = [
+    "proof-long-names", "planner-noroute", "proof-plan-error", "proof-loading", "proof-avoid-many",
+    "proof-saved-empty", "proof-saved-many", "signup-errors", "proof-map-fails", "planner-steps",
+];
+const ONLY = args.only ? new Set(args.only.split(",")) : "proof" in args ? new Set(PROOF) : null;
 const PORT = 9300 + Math.floor(Math.random() * 500);
 const CHROME = args.chrome ?? "google-chrome";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const respond = (status, body, delayMs = 0) => ({ __respond: true, status, body, delayMs });
 
 const OVERFLOW_CHECK = `(() => {
     const vw = document.documentElement.clientWidth;
@@ -448,6 +453,100 @@ const SHOTS = [
         },
         ready: mapIdle,
     },
+    {
+        name: "proof-long-names",
+        path: "/?from=-33.92210,18.42570&fromLabel=" + encodeURIComponent("Cape Town Station, Adderley Street, Cape Town City Centre, Cape Town, 8001") +
+            "&to=-33.98060,18.46530&toLabel=" + encodeURIComponent("Claremont Station, Main Road, Claremont, Southern Suburbs, Cape Town, 7708"),
+        setup: replan(1, "08:00"),
+        ready: async (p) => {
+            await p.waitFor(`${RESULT}?.innerText.includes("08:00 →")`, "08:00 journey result");
+            await mapIdle(p);
+        },
+    },
+    {
+        name: "proof-plan-error",
+        path: JOURNEY,
+        stub: { "*/api/plan/*": respond(500, { detail: "The journey planner is temporarily unavailable." }) },
+        ready: async (p) => {
+            await p.waitFor("document.body.innerText.includes('temporarily unavailable')", "the error message");
+            await mapIdle(p);
+        },
+    },
+    {
+        name: "proof-loading",
+        path: JOURNEY,
+        stub: { "*/api/plan/*": respond(200, { earliest_arrival: null, path: [], path_objs: [] }, 60000) },
+        ready: (p) => p.waitFor("!!document.querySelector('.loading-skeleton')", "the loading state"),
+    },
+    {
+        name: "proof-avoid-many",
+        path: "/",
+        stub: {
+            "*/api/preferences/*": {
+                minimize_walking: true,
+                minimize_stops: true,
+                excluded_modes: [0, 1],
+                excluded_lines: ["mr:central", "mr:northern", "mr:southern", "mr:cape-flats", "ga:101", "ga:205", "ga:301", "ga:420"],
+                excluded_lines_detail: [
+                    { key: "mr:central", label: "Central", mode: 2, operator: "Metrorail", directions: 22 },
+                    { key: "mr:northern", label: "Northern", mode: 2, operator: "Metrorail", directions: 18 },
+                    { key: "mr:southern", label: "Southern", mode: 2, operator: "Metrorail", directions: 20 },
+                    { key: "mr:cape-flats", label: "Cape Flats", mode: 2, operator: "Metrorail", directions: 8 },
+                    { key: "ga:101", label: "Bellville to Cape Town via Voortrekker Road", mode: 1, operator: "Golden Arrow", directions: 2 },
+                    { key: "ga:205", label: "Mitchells Plain Town Centre to Wynberg", mode: 1, operator: "Golden Arrow", directions: 2 },
+                    { key: "ga:301", label: "Khayelitsha to Claremont", mode: 1, operator: "Golden Arrow", directions: 2 },
+                    { key: "ga:420", label: "Atlantis to Cape Town", mode: 1, operator: "Golden Arrow", directions: 2 },
+                ],
+            },
+        },
+        setup: async (p) => {
+            await p.waitFor("!!window.__map", "planner");
+            await p.eval(`${FAKE_SESSION}; location.reload()`);
+            await sleep(1500);
+            await p.waitFor("!document.getElementById('splash')", "the splash to lift");
+            await p.eval(`if (!document.querySelector('#time, #time-sheet')) ${clickText("button", "Where to?")}`);
+            await openOptions(p);
+        },
+        ready: mapIdle,
+    },
+    {
+        name: "proof-saved-empty",
+        path: "/",
+        stub: { "*/api/saved-routes/*": [] },
+        setup: async (p) => {
+            await p.waitFor("!!window.__map", "planner");
+            await p.eval(`${FAKE_SESSION}; location.assign('/savedroutes')`);
+            await sleep(1500);
+            await p.waitFor("document.body.innerText.includes('No saved routes yet')", "the empty state");
+        },
+    },
+    {
+        name: "proof-saved-many",
+        path: "/",
+        stub: {
+            "*/api/saved-routes/*": Array.from({ length: 30 }, (_, i) => ({
+                id: i + 1,
+                name: i % 3 === 0 ? "" : i % 3 === 1 ? `Route ${i + 1}` : "Wednesday evening class at the university, then home",
+                start_location: i % 2 ? "Cape Town Station, Adderley Street, Cape Town City Centre" : "Gugulethu",
+                end_location: i % 2 ? "Claremont Station" : "Victoria & Alfred Waterfront, Breakwater Boulevard, Cape Town",
+                origin_lat: -33.978, origin_lon: 18.57, dest_lat: -33.9025, dest_lon: 18.4207,
+                route_signature: "",
+                created_at: "2026-10-01T09:00:00Z",
+            })),
+        },
+        setup: async (p) => {
+            await p.waitFor("!!window.__map", "planner");
+            await p.eval(`${FAKE_SESSION}; location.assign('/savedroutes')`);
+            await sleep(1500);
+            await p.waitFor("document.querySelectorAll('li').length >= 30", "thirty routes");
+        },
+    },
+    {
+        name: "proof-map-fails",
+        path: "/",
+        block: ["*tiles.openfreemap.org*"],
+        ready: (p) => p.waitFor("(window.__mapErrors ?? []).length > 0", "the map's error"),
+    },
     { name: "login", path: "/login" },
     { name: "signup", path: "/signup" },
     {
@@ -556,15 +655,16 @@ async function connect() {
                         ],
                     });
                 }
-                send("Fetch.fulfillRequest", {
+                const r = hit[1]?.__respond ? hit[1] : { status: 200, body: hit[1], delayMs: 0 };
+                setTimeout(() => send("Fetch.fulfillRequest", {
                     requestId,
-                    responseCode: 200,
+                    responseCode: r.status,
                     responseHeaders: [
                         { name: "Content-Type", value: "application/json" },
                         { name: "Access-Control-Allow-Origin", value: "*" },
                     ],
-                    body: Buffer.from(JSON.stringify(hit[1])).toString("base64"),
-                });
+                    body: Buffer.from(JSON.stringify(r.body)).toString("base64"),
+                }), r.delayMs);
             });
             return send("Fetch.enable", { patterns: Object.keys(map).map((urlPattern) => ({ urlPattern })) });
         },
@@ -583,6 +683,7 @@ async function connect() {
             await send("Page.navigate", { url: BASE + path });
             await sleep(300);
             await page.waitFor("document.readyState === 'complete' && !!document.querySelector('header')", `load ${path}`);
+            await page.waitFor("!document.getElementById('splash') && !document.documentElement.classList.contains('revealing')", "the splash to lift");
         },
         close: () => ws.close(),
     };
@@ -591,6 +692,7 @@ async function connect() {
     );
     await send("Page.enable");
     await send("Runtime.enable");
+    await send("Network.enable");
     return page;
 }
 
@@ -652,6 +754,7 @@ try {
             if (shot.only && shot.only !== label) continue;
             await page.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 2, mobile: label === "mobile" });
             await page.stub(shot.stub ?? null);
+            await page.send("Network.setBlockedURLs", { urls: shot.block ?? [] });
             await page.goto(typeof shot.path === "function" ? await shot.path() : shot.path);
             await page.eval("document.fonts.ready.then(() => true)");
             if (shot.setup) await shot.setup(page);

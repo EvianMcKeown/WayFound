@@ -8,7 +8,7 @@ function Skeleton() {
     return (
         <div aria-hidden="true" className="flex flex-col gap-2">
             {[0, 1, 2].map((i) => (
-                <div key={i} className="h-24 animate-pulse rounded-xl bg-mist-100" />
+                <div key={i} className="loading-skeleton h-24 rounded-xl" />
             ))}
         </div>
     );
@@ -17,7 +17,7 @@ function Skeleton() {
 function Label({ children, strong }) {
     return (
         <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            className={`rounded-full px-2 py-0.5 text-2xs font-medium ${
                 strong ? "bg-brand-100 text-brand-800" : "bg-mist-100 text-mist-700"
             }`}
         >
@@ -43,7 +43,7 @@ function OptionCard({ option, index, slower, selected, onSelect, onHover, button
             onMouseLeave={() => onHover(null)}
             onFocus={() => onHover(index)}
             onBlur={() => onHover(null)}
-            className={`ico-rise group flex w-full flex-col gap-1.5 rounded-xl border p-3 text-left transition-[border-color,background-color,box-shadow] duration-[var(--duration-base)] ease-[var(--ease-out-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 ${
+            className={`ico-rise group flex w-full flex-col gap-1.5 rounded-xl border p-3 text-left tabular-nums transition-[border-color,background-color,box-shadow] duration-(--duration-base) ease-out-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 ${
                 selected ? "border-brand-700 bg-brand-50 shadow-sm ring-1 ring-brand-700" : "border-mist-200 bg-white hover:border-mist-400"
             }`}
             style={{ "--i": index }}

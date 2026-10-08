@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { MODE_STYLE, hasApproximate } from "../lib/journey";
-import { Button, Panel, TextLink } from "./ui";
+import { Button, TextLink } from "./ui";
 import ModeBadge from "./ModeBadge";
 import RouteOptions, { CompareToggle } from "./RouteOptions";
 import { BanIcon, BookmarkIcon } from "./icons";
@@ -19,7 +19,7 @@ function Stat({ label, value }) {
 function AreaTag() {
     return (
         <span
-            className="ml-1 rounded bg-amber-100 px-1 py-px text-[10px] font-medium uppercase tracking-wide text-amber-800"
+            className="ml-1 rounded bg-warning-100 px-1 py-px text-2xs font-medium uppercase tracking-wide text-warning-800"
             title="The bus stops in this area; the position shown is its centre"
         >
             area
@@ -45,7 +45,7 @@ function LegRow({ leg, last, index = 0, onAvoid }) {
             : `${leg.fromName} → ${leg.toName}${leg.stops != null ? ` · ${leg.stops} stops` : ""}`;
 
     return (
-        <li className="ico-rise relative flex gap-3 pb-4" style={{ "--i": index }}>
+        <li className="ico-rise relative flex gap-3 pb-4 tabular-nums" style={{ "--i": index }}>
             {!last && (
                 <span
                     aria-hidden="true"
@@ -69,7 +69,7 @@ function LegRow({ leg, last, index = 0, onAvoid }) {
                             onClick={() => onAvoid(leg.line)}
                             title={`Plan again without ${lineName(leg.line)}`}
                             aria-label={`Avoid ${lineName(leg.line)}`}
-                            className="group ml-2 inline-flex items-center gap-1 rounded py-1 text-xs font-medium text-mist-600 underline-offset-2 hover:text-red-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
+                            className="group ml-2 inline-flex items-center gap-1 rounded py-1 text-xs font-medium text-mist-600 underline-offset-2 hover:text-danger-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
                         >
                             <BanIcon className="h-3.5 w-3.5" />
                             Avoid
@@ -99,13 +99,13 @@ function reportContext(journey) {
 export function TripHeadline({ journey }) {
     const { summary, arrival, departure, algorithm } = journey;
     return (
-        <div>
+        <div className="tabular-nums">
             <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                 <p className="whitespace-nowrap text-3xl font-bold tracking-tight text-mist-900">{formatDuration(summary.duration)}</p>
                 <span className="flex items-center gap-1.5">
                     {journey.avoiding > 0 && (
                         <span className="flex items-center gap-1 whitespace-nowrap rounded-full bg-mist-100 px-2 py-0.5 text-xs font-medium text-mist-700" title={journey.avoidingNames}>
-                            <BanIcon className="h-3 w-3 text-red-700" />
+                            <BanIcon className="h-3 w-3 text-danger-700" />
                             Avoiding {journey.avoiding}
                         </span>
                     )}
@@ -140,7 +140,7 @@ export function TripModes({ journey }) {
 export function TripStats({ journey }) {
     const { summary } = journey;
     return (
-        <dl className="grid grid-cols-2 gap-3 border-y border-mist-200 py-3">
+        <dl className="grid grid-cols-2 gap-3 border-y border-mist-200 py-3 tabular-nums">
             <Stat label="Transfers" value={summary.transfers} />
             <Stat label="Walking" value={`${summary.walkMinutes} min`} />
         </dl>
@@ -157,7 +157,7 @@ export function TripLegs({ journey, onAvoid }) {
                 ))}
             </ol>
             {hasApproximate(legs) && (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <p className="rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-800">
                     Stops marked <strong>area</strong> are places where the bus stops somewhere in a suburb or around a
                     landmark. The map shows the centre, so look for the bus nearby.
                 </p>
@@ -193,14 +193,14 @@ export function TripReport({ journey }) {
     );
 }
 
-export function NoRouteCard({ journey, className = "", onAllow }) {
+export function NoRouteCard({ journey, className = "", onAllow, bare = false }) {
     const blocked = journey.blockedBy ?? [];
     return (
-        <div className={`rounded-2xl border border-amber-200 bg-amber-50/85 p-4 text-sm text-amber-800 shadow-lg backdrop-blur-md ${className}`}>
+        <div className={`text-sm text-warning-800 ${bare ? "" : "rounded-2xl border border-warning-200 bg-warning-50/85 p-4 shadow-lg backdrop-blur-md"} ${className}`}>
             {blocked.length > 0 && onAllow ? (
                 <>
                     <p className="font-medium">No route while avoiding {blocked.map((b) => b.label).join(", ")}</p>
-                    <p className="mt-1 text-amber-800">A route exists if you allow {blocked.length === 1 ? "it" : "them"} for this trip.</p>
+                    <p className="mt-1 text-warning-800">A route exists if you allow {blocked.length === 1 ? "it" : "them"} for this trip.</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                         {blocked.map((b) => (
                             <Button key={b.key ?? `mode-${b.mode}`} variant="secondary" size="sm" onClick={() => onAllow(b)}>
@@ -212,7 +212,7 @@ export function NoRouteCard({ journey, className = "", onAllow }) {
             ) : (
                 <>
                     <p className="font-medium">No public transport route found</p>
-                    <p className="mt-1 text-amber-800">Try a different departure time, or a start and destination closer to a stop.</p>
+                    <p className="mt-1 text-warning-800">Try a different departure time, or a start and destination closer to a stop.</p>
                 </>
             )}
             <p className="mt-2 text-xs">
@@ -240,15 +240,15 @@ export function TripCompare({ compare, className = "" }) {
 }
 
 export default function JourneyResults({ journey, onSave, saving, saved, signedIn, compare, onAvoid, onAllow }) {
-    if (journey.status === "none") return <NoRouteCard journey={journey} className="pointer-events-auto" onAllow={onAllow} />;
+    if (journey.status === "none") return <NoRouteCard journey={journey} onAllow={onAllow} bare />;
     return (
-        <Panel as="section" tone="glass" aria-label="Journey result" className="pointer-events-auto flex flex-col gap-3 p-4">
+        <section aria-label="Journey result" className="flex flex-col gap-3">
             <TripHeadline journey={journey} />
             <TripCompare compare={compare} />
             <TripStats journey={journey} />
             <TripLegs journey={journey} onAvoid={onAvoid} />
             <TripSave onSave={onSave} saving={saving} saved={saved} signedIn={signedIn} />
             <TripReport journey={journey} />
-        </Panel>
+        </section>
     );
 }

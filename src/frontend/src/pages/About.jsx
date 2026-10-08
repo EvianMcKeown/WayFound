@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import Page from "../components/Page";
+import { foundClass } from "../lib/ui";
 import { MODE_STYLE } from "../lib/journey";
 import { Button, Panel, TextLink } from "../components/ui";
 
@@ -29,11 +30,11 @@ export default function About() {
     return (
         <Page width="lg">
             <Panel as="section" radius="3xl" className="flex flex-col items-center gap-5 px-6 py-10 text-center">
-                <img src="/logo.png" alt="" className="h-20 w-20 rounded-3xl bg-white shadow-md ring-1 ring-brand-100" />
+                <img src="/logo.svg" alt="" className="h-20 w-20 rounded-3xl bg-white shadow-md ring-1 ring-brand-100" />
                 <div className="flex flex-col items-center gap-1">
                     <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
                         <span className="text-mist-900">Way</span>
-                        <span className="text-brand-700">Found</span>
+                        <span className={foundClass}>Found</span>
                     </h1>
                     <p className="text-sm font-medium text-mist-600 sm:text-base">Cape Town Journey Planner</p>
                 </div>
@@ -80,7 +81,7 @@ export default function About() {
                         </div>
                     ))}
                 </dl>
-                <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <p className="mt-3 rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-800">
                     Timetables can change faster than we can update them, and some stops are only known to the nearest
                     area. Check with the operator before an important trip, and{" "}
                     <Link to="/report" className="font-medium underline hover:no-underline">tell us</Link> if something

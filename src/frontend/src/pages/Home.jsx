@@ -7,7 +7,9 @@ import MapView from "../components/MapView";
 import AvoidTransport, { AvoidDefaults } from "../components/AvoidTransport";
 import RouteOptions, { CompareToggle } from "../components/RouteOptions";
 import PlaceSearch from "../components/PlaceSearch";
+import { Refreshing, ResultCard, Spinner, TripSkeleton } from "../components/TripLoading";
 import { apiFetch } from "../lib/api";
+import { holdBoot } from "../lib/boot";
 import { getSession, useSession } from "../lib/auth";
 import { buildLegs, buildOption, summarise } from "../lib/journey";
 import { readPlannerLink } from "../lib/plannerLink";
@@ -20,6 +22,10 @@ const OVERLAY_QUERY = "(min-width: 1024px)";
 const PANEL_WIDTH_PX = 384;
 const NO_ALTS = [];
 const ALTERNATIVES = 5;
+const MIN_LOADING_MS = 1000;
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const painted = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+const loadingFloor = () => painted().then(() => pause(MIN_LOADING_MS));
 const ALGORITHMS = [
     { label: "RAPTOR", value: false },
     { label: "Dijkstra", value: true },
@@ -76,12 +82,12 @@ function SearchForm({ title, onClose, origin, destination, setOrigin, setDestina
             />
 
             <div className="grid grid-cols-2 gap-3">
-                <Field id={`day${suffix}`} label="Day" as="select" value={day} onChange={(e) => setWhen((w) => ({ ...w, day: Number(e.target.value) }))}>
+                <Field id={`day${suffix}`} className="min-w-0" label="Day" as="select" value={day} onChange={(e) => setWhen((w) => ({ ...w, day: Number(e.target.value) }))}>
                     {DAYS.map((d, i) => (
                         <option key={d} value={i}>{d}</option>
                     ))}
                 </Field>
-                <Field id={`time${suffix}`} label="Depart at" type="time" required value={time} onChange={(e) => setWhen((w) => ({ ...w, time: e.target.value }))} />
+                <Field id={`time${suffix}`} className="min-w-0" controlClassName="tabular-nums" label="Depart at" type="time" required value={time} onChange={(e) => setWhen((w) => ({ ...w, time: e.target.value }))} />
             </div>
 
             <details className="group">
@@ -107,6 +113,7 @@ function SearchForm({ title, onClose, origin, destination, setOrigin, setDestina
             </details>
 
             <Button type="submit" disabled={planning}>
+                {planning && <Spinner />}
                 {planning ? "Finding routes…" : "Find route"}
             </Button>
         </form>
@@ -120,7 +127,7 @@ function SearchSummary({ origin, destination, day, time, onEdit }) {
                 <span className="block truncate text-sm font-medium text-mist-900">
                     {origin?.label ?? "Start"} → {destination?.label ?? "Destination"}
                 </span>
-                <span className="block text-xs text-mist-700">{DAYS[day]} · depart {time}</span>
+                <span className="block text-xs text-mist-700 tabular-nums">{DAYS[day]} · depart {time}</span>
             </button>
             <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Change journey">
                 <EditIcon />
@@ -153,6 +160,7 @@ export default function Home() {
     const [savedId, setSavedId] = useState(null);
     const planCtrl = useRef(null);
     const altCtrl = useRef(null);
+    const journeyCount = useRef(0);
     const lastPlan = useRef(null);
     const [compareOpen, setCompareOpen] = useState(false);
     const [alts, setAlts] = useState({ status: "idle", items: [] });
@@ -223,15 +231,21 @@ export default function Home() {
         setEditing(false);
         setSearchOpen(false);
         setTripExpanded(false);
+        const floor = loadingFloor();
+        const settle = async () => {
+            await floor;
+            return !ctrl.signal.aborted;
+        };
         try {
             const data = await apiFetch("/api/plan/", {
                 method: "POST",
                 signal: ctrl.signal,
                 body: alt && !useDijkstra ? { ...body, alternatives: ALTERNATIVES } : body,
             });
+            if (!(await settle())) return;
             const pathObjs = data.path_objs || [];
             if (data.earliest_arrival == null || pathObjs.length === 0) {
-                setJourney({ status: "none", request, blockedBy: data.blocked_by_exclusions ? data.blocked_by : null });
+                setJourney({ id: ++journeyCount.current, status: "none", request, blockedBy: data.blocked_by_exclusions ? data.blocked_by : null });
                 return;
             }
             const unknown = new Set(data.exclusions?.unknown_lines ?? []);
@@ -239,6 +253,7 @@ export default function Home() {
             const built = buildLegs(pathObjs, from, to);
             setSavedId(null);
             setJourney({
+                id: ++journeyCount.current,
                 status: "ok",
                 legs: built,
                 departure,
@@ -258,7 +273,7 @@ export default function Home() {
                 else setMessage({ text: "The route you saved is not available at this time, so this is the best one.", error: false });
             }
         } catch (err) {
-            if (err.name === "AbortError") return;
+            if (err.name === "AbortError" || !(await settle())) return;
             setJourney(null);
             setMessage({ text: err.message || "Could not reach the journey planner.", error: true });
         } finally {
@@ -321,16 +336,21 @@ export default function Home() {
         const ctrl = new AbortController();
         altCtrl.current = ctrl;
         setAlts({ status: "loading", items: [] });
+        const floor = loadingFloor();
         try {
             const data = await apiFetch("/api/plan/", {
                 method: "POST",
                 signal: ctrl.signal,
                 body: { ...last.body, alternatives: ALTERNATIVES },
             });
+            await floor;
+            if (ctrl.signal.aborted) return;
             const items = (data.journeys ?? []).map((j) => buildOption(j, last.from, last.to, last.departure));
             setAlts({ status: "ready", items });
         } catch (err) {
             if (err.name === "AbortError") return;
+            await floor;
+            if (ctrl.signal.aborted) return;
             setAlts({ status: "error", items: [] });
         }
     };
@@ -368,7 +388,7 @@ export default function Home() {
     useEffect(() => {
         if (!session) return;
         let cancelled = false;
-        apiFetch("/api/preferences/", { auth: true })
+        holdBoot(apiFetch("/api/preferences/", { auth: true }))
             .then((p) => {
                 if (cancelled) return;
                 const saved = avoidFromPrefs(p);
@@ -510,13 +530,23 @@ export default function Home() {
         return (
             <AppShell overlayHeader>
                 <div className="relative flex min-h-0 flex-1 flex-col">
-                    <aside className="absolute left-0 top-16 z-10 flex max-h-[calc(100%-4rem)] w-[24rem] shrink-0 flex-col gap-4 overflow-y-auto bg-transparent p-4 [direction:rtl] [&>*]:[direction:ltr]">
-                        <Panel tone="glass" className="pointer-events-auto p-4">
+                    <aside className="absolute left-0 top-16 z-10 flex max-h-[calc(100%-4rem)] w-panel shrink-0 flex-col gap-4 overflow-y-auto bg-transparent p-4 [direction:rtl] [&>*]:[direction:ltr]">
+                        <Panel tone="glass" data-reveal className="pointer-events-auto p-4">
                             <SearchForm {...searchProps} />
                         </Panel>
                         {alert}
-                        {journey && (
-                            <JourneyResults journey={active} onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} compare={compare(compareOpen, toggleDesktop)} onAvoid={avoidLine} onAllow={allow} />
+                        {(journey || planning) && (
+                            <Refreshing busy={planning && journey != null}>
+                                <ResultCard tone={journey?.status === "none" ? "warn" : "glass"}>
+                                    {journey ? (
+                                        <div key={journey.id} className="loading-swap-in">
+                                            <JourneyResults journey={active} onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} compare={compare(compareOpen, toggleDesktop)} onAvoid={avoidLine} onAllow={allow} />
+                                        </div>
+                                    ) : (
+                                        <TripSkeleton />
+                                    )}
+                                </ResultCard>
+                            </Refreshing>
                         )}
                     </aside>
                     <div className="absolute inset-0">
@@ -564,7 +594,15 @@ export default function Home() {
     let pinned = null;
     let peek;
     let more = null;
-    if (showForm) {
+    if (planning && !hasTrip) {
+        pinned = summary;
+        peek = (
+            <div className="flex flex-col gap-3 px-4 pb-6">
+                {alert}
+                <TripSkeleton legs={0} />
+            </div>
+        );
+    } else if (showForm) {
         peek = (
             <div className="flex flex-col gap-3 px-4 pb-6 pt-1">
                 <SearchForm
@@ -580,7 +618,7 @@ export default function Home() {
                         aria-label="Show the trip again"
                         className="flex items-center gap-2 rounded-lg bg-mist-100 px-3 py-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40"
                     >
-                        <span className="text-base font-semibold text-mist-900">{Math.round(active.summary.duration)} min</span>
+                        <span className="text-base font-semibold text-mist-900 tabular-nums">{Math.round(active.summary.duration)} min</span>
                         <span className="flex-1 text-sm text-mist-700">trip found · tap to show</span>
                         <ChevronIcon open className="h-4 w-4 text-mist-600" />
                     </button>
@@ -606,7 +644,11 @@ export default function Home() {
         peek = (
             <div className="flex flex-col gap-3 px-4 pb-6">
                 {alert}
-                <NoRouteCard journey={journey} onAllow={allow} />
+                <Refreshing busy={planning}>
+                    <div key={journey.id} className="loading-swap-in">
+                        <NoRouteCard journey={journey} onAllow={allow} />
+                    </div>
+                </Refreshing>
             </div>
         );
     } else {
@@ -614,25 +656,33 @@ export default function Home() {
         peek = (
             <div className="flex flex-col gap-3 px-4 pb-6">
                 {alert}
-                <TripHeadline journey={active} />
-                <TripModes journey={active} />
-                {supportsCompare && (
-                    <CompareToggle open={compareOpen && tripExpanded} onToggle={toggleMobile} chosen={activeIndex > 0 ? activeIndex : null} />
-                )}
-                <div className="flex gap-2">
-                    <TripSave onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} className="flex-1" />
-                    <Button onClick={() => setTripExpanded((x) => !x)} aria-expanded={tripExpanded}>
-                        {tripExpanded ? "Less" : "Steps"}
-                    </Button>
-                </div>
+                <Refreshing busy={planning}>
+                    <div key={journey.id} className="loading-swap-in flex flex-col gap-3">
+                        <TripHeadline journey={active} />
+                        <TripModes journey={active} />
+                        {supportsCompare && (
+                            <CompareToggle open={compareOpen && tripExpanded} onToggle={toggleMobile} chosen={activeIndex > 0 ? activeIndex : null} />
+                        )}
+                        <div className="flex gap-2">
+                            <TripSave onSave={save} saving={saving} saved={savedId != null} signedIn={Boolean(session)} className="flex-1" />
+                            <Button onClick={() => setTripExpanded((x) => !x)} aria-expanded={tripExpanded}>
+                                {tripExpanded ? "Less" : "Steps"}
+                            </Button>
+                        </div>
+                    </div>
+                </Refreshing>
             </div>
         );
         more = (
             <div className="flex flex-col gap-3 px-4 pb-6">
-                {compareOpen && supportsCompare && <RouteOptions {...compare(true, toggleMobile)} onSelect={chooseOnSheet} />}
-                <TripStats journey={active} />
-                <TripLegs journey={active} onAvoid={avoidLine} />
-                <TripReport journey={active} />
+                <Refreshing busy={planning} indicator={false}>
+                    <div key={journey.id} className="flex flex-col gap-3">
+                        {compareOpen && supportsCompare && <RouteOptions {...compare(true, toggleMobile)} onSelect={chooseOnSheet} />}
+                        <TripStats journey={active} />
+                        <TripLegs journey={active} onAvoid={avoidLine} />
+                        <TripReport journey={active} />
+                    </div>
+                </Refreshing>
             </div>
         );
     }
@@ -654,7 +704,7 @@ export default function Home() {
                     />
                 </div>
                 {showLocate && "geolocation" in navigator && (
-                    <div className="absolute right-4 z-10 transition-[bottom] duration-[250ms] ease-out" style={{ bottom: sheetHeight + 12 }}>
+                    <div data-reveal className="absolute right-4 z-10 transition-[bottom] duration-(--duration-slow) ease-out-soft" style={{ bottom: sheetHeight + 12, "--reveal-i": 2 }}>
                         <Button variant="secondary" size="icon" onClick={locateMe} aria-label="Use my location">
                             <LocateIcon busy={locating} />
                         </Button>

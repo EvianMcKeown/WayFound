@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+import { bootHold, hasBooted } from "../lib/boot";
+import { easeCamera, ms, resolveColor, token } from "../lib/tokens";
 import { DEFAULT_AREA_RADIUS_M, MODE_STYLE, approximateAreas, journeyStops } from "../lib/journey";
 
 maplibregl.setWorkerUrl(workerUrl);
@@ -13,7 +15,7 @@ function pin(color) {
     const el = document.createElement("div");
     const dot = document.createElement("div");
     dot.className = "map-pin";
-    dot.style.cssText = `width:16px;height:16px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)`;
+    dot.style.cssText = `width:16px;height:16px;border-radius:50%;background:${color};border:3px solid var(--color-white);box-shadow:var(--shadow-pin)`;
     el.appendChild(dot);
     return el;
 }
@@ -39,13 +41,14 @@ function circle([lon, lat], metres, steps = 40) {
 
 function addOverlayLayers(map) {
     const empty = { type: "FeatureCollection", features: [] };
+    const [white, ink, zone, zoneLine] = ["color-white", "color-mist-900", "color-map-zone", "color-map-zone-line"].map(token);
     map.addSource("areas", { type: "geojson", data: empty });
-    map.addLayer({ id: "areas-fill", type: "fill", source: "areas", paint: { "fill-color": "#d9b45a", "fill-opacity": 0.22 } });
+    map.addLayer({ id: "areas-fill", type: "fill", source: "areas", paint: { "fill-color": zone, "fill-opacity": 0.22 } });
     map.addLayer({
         id: "areas-outline",
         type: "line",
         source: "areas",
-        paint: { "line-color": "#9a7a2e", "line-width": 1.5, "line-dasharray": [2, 2] },
+        paint: { "line-color": zoneLine, "line-width": 1.5, "line-dasharray": [2, 2] },
     });
     map.addSource("alts", { type: "geojson", data: empty });
     map.addLayer({
@@ -54,11 +57,11 @@ function addOverlayLayers(map) {
         source: "alts",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-            "line-color": "#5f7062",
+            "line-color": token("color-mist-500"),
             "line-width": ["case", ["get", "hl"], 6, 3],
             "line-opacity": ["case", ["get", "hl"], 0.85, 0.45],
-            "line-width-transition": { duration: 200 },
-            "line-opacity-transition": { duration: 200 },
+            "line-width-transition": { duration: ms("duration-base") },
+            "line-opacity-transition": { duration: ms("duration-base") },
         },
     });
     map.addSource("legs", { type: "geojson", data: empty });
@@ -67,7 +70,7 @@ function addOverlayLayers(map) {
         type: "line",
         source: "legs",
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#ffffff", "line-width": 8 },
+        paint: { "line-color": white, "line-width": 8 },
     });
     for (const [kind, style] of Object.entries(MODE_STYLE)) {
         map.addLayer({
@@ -77,7 +80,7 @@ function addOverlayLayers(map) {
             filter: ["==", ["get", "kind"], kind],
             layout: { "line-cap": style.dash ? "butt" : "round", "line-join": "round" },
             paint: {
-                "line-color": style.color,
+                "line-color": resolveColor(style.color),
                 "line-width": 5,
                 ...(style.dash ? { "line-dasharray": [1.2, 1.6] } : {}),
             },
@@ -90,9 +93,9 @@ function addOverlayLayers(map) {
         source: "stops",
         paint: {
             "circle-radius": ["case", ["==", ["get", "role"], "end"], 6, 3.5],
-            "circle-color": "#ffffff",
+            "circle-color": white,
             "circle-stroke-width": 2,
-            "circle-stroke-color": ["case", ["get", "approx"], "#9a7a2e", "#1a1f1a"],
+            "circle-stroke-color": ["case", ["get", "approx"], zoneLine, ink],
         },
     });
     map.addLayer({
@@ -109,10 +112,11 @@ function addOverlayLayers(map) {
             "text-anchor": "top",
             "text-optional": true,
         },
-        paint: { "text-color": "#1a1f1a", "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
+        paint: { "text-color": ink, "text-halo-color": white, "text-halo-width": 1.5 },
     });
 }
 
+const FIT = { padding: 48, maxZoom: 15 };
 export default function MapView({
     origin,
     destination,
@@ -128,17 +132,15 @@ export default function MapView({
     const mapRef = useRef(null);
     const markersRef = useRef([]);
     const readyRef = useRef(false);
+    const settledRef = useRef(false);
+    const [shown, setShown] = useState(false);
     const boundsRef = useRef(null);
     const propsRef = useRef({ origin, destination, legs, altRoutes, highlight, areaRadius, insetLeft, insetTop, insetBottom });
     propsRef.current = { origin, destination, legs, altRoutes, highlight, areaRadius, insetLeft, insetTop, insetBottom };
 
-    const applyInsets = () => {
-        const map = mapRef.current;
-        if (!map) return;
-        const { insetLeft, insetTop, insetBottom } = propsRef.current;
-        map.setPadding({ left: insetLeft, top: insetTop, right: 0, bottom: insetBottom });
+    const placeControls = () => {
         const topRight = containerRef.current?.querySelector(".maplibregl-ctrl-top-right");
-        if (topRight) topRight.style.top = `${insetTop}px`;
+        if (topRight) topRight.style.top = `${propsRef.current.insetTop}px`;
     };
 
     const drawAlts = () => {
@@ -199,8 +201,8 @@ export default function MapView({
             );
             bounds.extend([place.lon, place.lat]);
         };
-        addPin(origin, "#1a1f1a");
-        addPin(destination, "#108418");
+        addPin(origin, "var(--color-mist-900)");
+        addPin(destination, "var(--color-brand-700)");
         legs.forEach((l) => (l.shape ?? [l.from, l.to]).forEach((pt) => bounds.extend(pt)));
 
         if (legs.length && !prefersReducedMotion()) {
@@ -211,26 +213,37 @@ export default function MapView({
             setTimeout(() => {
                 if (mapRef.current !== map) return;
                 FADE_LAYERS.forEach(([id, prop]) => {
-                    map.setPaintProperty(id, `${prop}-transition`, { duration: 700, delay: 0 });
+                    map.setPaintProperty(id, `${prop}-transition`, { duration: ms("duration-route-fade"), delay: 0 });
                     map.setPaintProperty(id, prop, 1);
                 });
             }, 60);
         }
 
         boundsRef.current = bounds.isEmpty() ? null : bounds;
-        fit(map.loaded() ? 600 : 0);
+        frame(ms("duration-camera"));
         drawAlts();
     };
 
-    const fit = (duration) => {
+    const frame = (duration) => {
         const map = mapRef.current;
-        if (!map || !readyRef.current || !boundsRef.current) return;
-        map.fitBounds(boundsRef.current, { padding: 48, maxZoom: 15, duration });
+        if (!map || !readyRef.current) return;
+        const { insetLeft, insetTop, insetBottom } = propsRef.current;
+        const padding = { left: insetLeft, top: insetTop, right: 0, bottom: insetBottom };
+        let camera = {};
+        if (boundsRef.current) {
+            const before = map.getPadding();
+            map.setPadding(padding);
+            camera = map.cameraForBounds(boundsRef.current, FIT) ?? {};
+            map.setPadding(before);
+        }
+        if (!settledRef.current) map.jumpTo({ ...camera, padding });
+        else map.easeTo({ ...camera, padding, duration, easing: easeCamera });
     };
 
     useEffect(() => {
         let map = null;
         let ro = null;
+        const releaseBoot = bootHold();
         const timer = setTimeout(() => {
             map = new maplibregl.Map({
                 container: containerRef.current,
@@ -245,14 +258,24 @@ export default function MapView({
                 map.on("error", (e) => window.__mapErrors.push(String(e.error?.message ?? e.error)));
             }
             map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-            applyInsets();
+            map.setPadding({ left: insetLeft, top: insetTop, right: 0, bottom: insetBottom });
+            placeControls();
+            map.once("idle", () => {
+                settledRef.current = true;
+                setShown(hasBooted() ? "fade" : "now");
+                releaseBoot();
+            });
+            map.once("error", () => {
+                setShown(hasBooted() ? "fade" : "now");
+                releaseBoot();
+            });
 
             map.on("load", () => {
                 addOverlayLayers(map);
                 map.on("click", "stops-dot", (e) => {
                     const f = e.features[0];
                     const note = f.properties.approx === true || f.properties.approx === "true"
-                        ? "<br><span style=\"color:#7a5f1f\">Area stop: the bus stops somewhere around here</span>"
+                        ? "<br><span style=\"color:var(--color-map-zone-text)\">Area stop: the bus stops somewhere around here</span>"
                         : "";
                     new maplibregl.Popup({ closeButton: false, offset: 10 })
                         .setLngLat(f.geometry.coordinates)
@@ -272,6 +295,7 @@ export default function MapView({
         }, 0);
 
         return () => {
+            releaseBoot();
             clearTimeout(timer);
             ro?.disconnect();
             readyRef.current = false;
@@ -279,12 +303,12 @@ export default function MapView({
             map?.remove();
             mapRef.current = null;
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- creates the map once; draw/applyInsets read the latest props through propsRef
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- creates the map once; draw/frame read the latest props through propsRef
     }, []);
 
     useEffect(() => {
-        applyInsets();
-        fit(300);
+        placeControls();
+        frame(ms(mapRef.current?.isMoving() ? "duration-camera" : "duration-slow"));
     }, [insetLeft, insetTop, insetBottom]);
 
     useEffect(draw, [origin, destination, legs]);
@@ -292,8 +316,8 @@ export default function MapView({
     useEffect(() => {
         if (!altRoutes.length || !boundsRef.current) return;
         altRoutes.forEach((r) => r.legs.forEach((l) => (l.shape ?? [l.from, l.to]).forEach((pt) => boundsRef.current.extend(pt))));
-        fit(600);
+        frame(ms("duration-camera"));
     }, [altRoutes]);
 
-    return <div ref={containerRef} className="h-full w-full" role="region" aria-label="Map" />;
+    return <div ref={containerRef} data-ready={shown} className="map-surface h-full w-full" role="region" aria-label="Map" />;
 }

@@ -15,12 +15,12 @@ function ModeChip({ operator, avoided, onToggle }) {
             aria-checked={!avoided}
             aria-label={`Use ${operator.label}`}
             onClick={onToggle}
-            className={`group flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-full border px-2 text-[13px] font-medium transition-[background-color,border-color,color,opacity] duration-[var(--duration-base)] ease-[var(--ease-out-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 enabled:active:scale-[0.97] ${
+            className={`group flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-full border px-2 text-xs font-medium transition-[background-color,border-color,color,opacity] duration-(--duration-base) ease-out-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-700/40 enabled:active:scale-(--scale-press) ${
                 avoided ? "border-mist-200 bg-mist-100 text-mist-600" : "border-mist-300 bg-white text-mist-900 hover:border-mist-400"
             }`}
         >
             {avoided ? (
-                <BanIcon className="h-4 w-4 text-red-700" />
+                <BanIcon className="h-4 w-4 text-danger-700" />
             ) : (
                 <span aria-hidden="true" className="h-3 w-3 rounded-full" style={{ backgroundColor: style.color }} />
             )}
@@ -42,7 +42,7 @@ export function ModeChips({ avoid, onChange }) {
 function LineChip({ line, onRemove }) {
     const style = MODE_STYLE[operatorOf(line.mode)?.kind];
     return (
-        <li className={`ico-rise flex min-h-9 items-center gap-1.5 rounded-full border py-0.5 pl-3 pr-1 text-sm ${line.unavailable ? "border-amber-200 bg-amber-50 text-amber-800" : "border-mist-300 bg-white text-mist-900"}`}>
+        <li className={`ico-rise flex min-h-9 items-center gap-1.5 rounded-full border py-0.5 pl-3 pr-1 text-sm ${line.unavailable ? "border-warning-200 bg-warning-50 text-warning-800" : "border-mist-300 bg-white text-mist-900"}`}>
             {style && <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: style.color }} />}
             <span>
                 {lineName(line)}

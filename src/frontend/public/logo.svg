@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>WayFound</title>
+  <defs>
+    <linearGradient id="m-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f1f6fe"/></linearGradient>
+    <linearGradient id="m-line" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#9bbeff"/><stop offset="1" stop-color="#2c71f8"/></linearGradient>
+    <linearGradient id="m-end" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2c71f8"/><stop offset="1" stop-color="#104fca"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#m-bg)"/>
+  <g fill="none" stroke="#e1ecff" stroke-width="30" stroke-linecap="round" opacity="0.8">
+    <path d="M178 88C232 150 252 250 238 332"/>
+    <path d="M262 70C282 170 330 262 382 360"/>
+  </g>
+  <path d="M131 396V330C131 272 170 256 240 245" fill="none" stroke="url(#m-line)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="131" cy="396" r="27" fill="#9bbeff"/>
+  <circle cx="240" cy="245" r="29" fill="#2c71f8"/><circle cx="240" cy="245" r="12" fill="#ffffff"/>
+  <circle cx="293" cy="225" r="10" fill="#2c71f8"/><circle cx="330" cy="203" r="10" fill="#2c71f8"/>
+  <circle cx="373" cy="149" r="45" fill="url(#m-end)"/><circle cx="373" cy="149" r="17" fill="#ffffff"/>
+</svg>

@@ -34,6 +34,7 @@ export default function ModeBadge({ kind, className = "h-6 w-6" }) {
     return (
         <span
             aria-hidden="true"
+            data-kind={kind}
             className={`inline-grid shrink-0 place-items-center rounded-full ${className}`}
             style={{ background: style.color, color: style.glyph }}
         >

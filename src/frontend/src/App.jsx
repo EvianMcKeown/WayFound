@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
@@ -8,6 +9,7 @@ import UserSettings from "./pages/UserSettings";
 import Report from "./pages/Report";
 import About from "./pages/About";
 import { useSession } from "./lib/auth";
+import { revealWhenReady } from "./lib/boot";
 
 
 function PrivateRoute({ children }) {
@@ -17,6 +19,7 @@ function PrivateRoute({ children }) {
 }
 
 export default function App() {
+  useEffect(revealWhenReady, []);
   return (
     <Router>
       <Routes>
