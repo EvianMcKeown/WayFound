@@ -58,6 +58,7 @@ export function buildLegs(pathObjs, origin, destination) {
                 toApprox: !!alightStop?.approximate,
                 along: step.stops_along ?? [],
                 routeName: step.route?.name || step.route_id,
+                towards: step.towards ?? null,
                 line: step.line ?? null,
                 routeId: step.route_id,
                 tripId: step.trip_id,
@@ -69,6 +70,13 @@ export function buildLegs(pathObjs, origin, destination) {
         }
     }
     return legs;
+}
+
+export function rideTitle(leg) {
+    const vehicle = MODE_STYLE[leg.kind]?.label ?? "";
+    const name = leg.kind === "myciti" && leg.line?.label ? leg.line.label : leg.routeName;
+    const towards = leg.towards && !name.toLowerCase().endsWith(leg.towards.toLowerCase()) ? ` towards ${leg.towards}` : "";
+    return `${vehicle} ${name}${towards}`.trim();
 }
 
 export function summarise(legs, departure, arrival) {

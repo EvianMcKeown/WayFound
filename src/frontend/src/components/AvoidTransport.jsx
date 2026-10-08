@@ -161,7 +161,7 @@ export function LinePicker({ avoid, onChange }) {
                             >
                                 <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: style?.color }} />
                                 <span className="min-w-0 flex-1 truncate">{lineName(l)}</span>
-                                {l.directions > 1 && <span className="shrink-0 text-xs text-mist-600">{l.directions} directions</span>}
+                                {l.directions > 1 && <span className="shrink-0 text-xs text-mist-600">{l.directions === 2 ? "both directions" : `${l.directions} directions`}</span>}
                             </li>
                         );
                     })}

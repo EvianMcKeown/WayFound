@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { MODE_STYLE, hasApproximate } from "../lib/journey";
+import { MODE_STYLE, hasApproximate, rideTitle } from "../lib/journey";
 import { Button, TextLink } from "./ui";
 import ModeBadge from "./ModeBadge";
 import RouteOptions, { CompareToggle } from "./RouteOptions";
@@ -38,7 +38,7 @@ function Place({ name, approx }) {
 
 function LegRow({ leg, last, index = 0, onAvoid }) {
     const style = MODE_STYLE[leg.kind];
-    const title = leg.kind === "walk" ? `Walk ${leg.minutes} min` : `${style.label} ${leg.routeName}`;
+    const title = leg.kind === "walk" ? `Walk ${leg.minutes} min` : rideTitle(leg);
     const detail =
         leg.kind === "walk"
             ? `${leg.fromName} → ${leg.toName}`
@@ -89,8 +89,8 @@ function reportContext(journey) {
         departure: journey.departure,
         arrival: journey.arrival,
         option: { rank: journey.rank ?? 0, signature: journey.signature ?? null },
-        legs: journey.legs.map(({ kind, routeName, routeId, tripId, fromName, toName, arrival, minutes }) => ({
-            kind, routeName, routeId, tripId, fromName, toName, arrival, minutes,
+        legs: journey.legs.map(({ kind, routeName, towards, routeId, tripId, fromName, toName, arrival, minutes }) => ({
+            kind, routeName, towards, routeId, tripId, fromName, toName, arrival, minutes,
         })),
     };
 }

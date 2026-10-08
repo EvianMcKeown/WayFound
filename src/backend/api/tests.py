@@ -331,6 +331,24 @@ class PlanEndpointTests(APITestCase):
         self.assertIn("mr:southern", lines)
         self.assertEqual(data["exclusions"], {"modes": [], "lines": [], "unknown_lines": [], "routes_banned": 0})
 
+    def test_rides_say_where_the_vehicle_is_going(self):
+        data = self.plan(self.GUGULETHU, self.WATERFRONT, alternatives=5)
+        rides = [r for j in data["journeys"] for r in self.rides(j)]
+        self.assertTrue(rides)
+        for r in rides:
+            self.assertTrue(r["towards"], r["route_id"])
+
+    def test_towards_is_the_trips_own_last_stop(self):
+        from algorithm_prototype.gtfs_reader import INF
+        from algorithm_prototype.raptor import Route, Stop, Trip
+
+        from .raptor_engine import _towards
+
+        route = Route("mc_x-0", [Stop(n, 0, 0.0, 0.0, name=n) for n in ("A", "B", "C")], name="x-0")
+        self.assertEqual(_towards(route, Trip("full", [1, 2, 3])), "C")
+        self.assertEqual(_towards(route, Trip("short", [1, 2, INF])), "B")
+        self.assertEqual(_towards(route, None), "C")
+
     def test_avoiding_an_operator_removes_it_from_every_option(self):
         data = self.plan(self.GUGULETHU, self.WATERFRONT, exclude_modes=[2], alternatives=5)
         for journey in [data, *data["journeys"]]:

@@ -200,6 +200,17 @@ def _serialize_trip(t: Trip) -> Dict[str, Any]:
     return {"id": t.id}
 
 
+def _towards(route: Route, trip: Optional[Trip]) -> Optional[str]:
+    if not route.stops:
+        return None
+    last = len(route.stops) - 1
+    if trip is not None:
+        times = trip.departure_times
+        while last > 0 and (last >= len(times) or times[last] == INF):
+            last -= 1
+    return getattr(route.stops[last], "name", None) or None
+
+
 def _path_objs_to_json_safe(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for step in steps:
@@ -225,6 +236,8 @@ def _path_objs_to_json_safe(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]
             s["route"] = _serialize_route(step["route_object"])
         if "trip_object" in step and step["trip_object"]:
             s["trip"] = _serialize_trip(step["trip_object"])
+        if step.get("route_object"):
+            s["towards"] = _towards(step["route_object"], step.get("trip_object"))
         route_obj, bp, dp = (
             step.get("route_object"),
             step.get("board_pos"),
