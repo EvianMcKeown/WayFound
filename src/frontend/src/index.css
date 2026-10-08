@@ -82,12 +82,16 @@
   input[type="time"]::-webkit-date-and-time-value, input[type="date"]::-webkit-date-and-time-value { margin: 0; text-align: left; }
 }
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 body {
   margin: 0;
   background-color: var(--color-mist-50);
   color-scheme: light;
   min-width: 320px;
-  min-height: 100vh;
 }
 
 @keyframes fade-in-out {
