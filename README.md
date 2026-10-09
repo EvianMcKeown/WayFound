@@ -143,6 +143,8 @@ python manage.py check --deploy
 ```
 Django refuses to start with `DJANGO_DEBUG=0` and no secret key or allowed hosts.
 
+A hosted copy is a small demo, not a transport service: the app says so in the header, under the planner's button, in the footer and on the About page (`components/DemoNotice.jsx`). The operators' timetables are used for that demo only; the GTFS files are not to be republished until the operators give permission (`docs/plans/myciti-timetable.md`).
+
 ### Tests and checks
 ```bash
 pytest algorithm_prototype/tests                  # from the repo root: RAPTOR, GTFS pipeline

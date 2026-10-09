@@ -47,7 +47,7 @@ export default function Page({ width = "md", centered = false, children }) {
                             <Link to="/report" className={footerLink}>Report an issue</Link>
                         </nav>
                         <div className="flex flex-col items-center gap-0.5 text-center sm:items-end sm:text-right">
-                            <p>&copy; {new Date().getFullYear()} WayFound</p>
+                            <p>&copy; {new Date().getFullYear()} WayFound · a demo, not an official transport service</p>
                             <p className="text-mist-600">Background roads &copy; OpenStreetMap contributors · terrain: NASA SRTM</p>
                         </div>
                     </footer>

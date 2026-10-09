@@ -11,7 +11,7 @@ const OPERATORS = [
 ];
 
 const SOURCES = [
-    ["Timetables", "Published MyCiTi, Golden Arrow and PRASA Metrorail timetables, converted to GTFS."],
+    ["Timetables", "Published MyCiTi (City of Cape Town, myciti.org.za), Golden Arrow and PRASA Metrorail timetables, converted to GTFS. The timetables belong to their operators."],
     ["Stop positions", "Western Cape Government transport data and OpenStreetMap contributors."],
     ["Map", "OpenFreeMap, © OpenMapTiles, © OpenStreetMap contributors."],
     ["Address search", "Photon by Komoot, using OpenStreetMap data."],
@@ -46,6 +46,21 @@ export default function About() {
                     <Button to="/faq" variant="secondary">How it works</Button>
                 </div>
             </Panel>
+
+            <Card title="This is a demo">
+                <div className="flex flex-col gap-2 text-sm text-mist-700">
+                    <p>
+                        WayFound is a portfolio project, hosted on a small scale to show how it works. It is not an
+                        official transport service and is not affiliated with the City of Cape Town, MyCiTi, Golden
+                        Arrow or PRASA Metrorail.
+                    </p>
+                    <p>
+                        Its timetables are copies of the ones the operators publish, taken on a particular date, so
+                        services may have changed since. Don’t rely on it for a trip that matters: check the operator’s
+                        own timetable first. Accounts and saved routes may be removed at any time.
+                    </p>
+                </div>
+            </Card>
 
             <Card title="Services covered">
                 <ul className="grid gap-3 sm:grid-cols-3">

@@ -5,6 +5,7 @@ import { clearSession, useSession } from "../lib/auth";
 import { surfaceClass } from "../lib/ui";
 import { Button } from "./ui";
 import Brand from "./Brand";
+import { DemoBadge } from "./DemoNotice";
 import { ChevronIcon, MenuIcon } from "./icons";
 
 const NAV = [
@@ -109,6 +110,7 @@ export default function AppShell({ overlayHeader = false, children }) {
             >
                 <div className="flex h-16 items-center gap-3 px-3 sm:px-6 lg:gap-6">
                     <Brand size="md" className="shrink-0" />
+                    <DemoBadge className="-ml-1 hidden shrink-0 sm:inline-flex" />
 
                     <div aria-hidden="true" className="hidden h-8 w-px bg-mist-200 lg:block" />
 
@@ -160,6 +162,9 @@ export default function AppShell({ overlayHeader = false, children }) {
                                 {item.label}
                             </NavLink>
                         ))}
+                        <p className="px-3 py-1 text-xs text-warning-800 sm:hidden">
+                            WayFound is a demo, not an official transport service.
+                        </p>
                         {!user && (
                             <Button to="/signup" className="mt-1 w-full">
                                 Create account

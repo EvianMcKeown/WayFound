@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import AppShell, { HEADER_HEIGHT_PX } from "../components/AppShell";
 import BottomSheet from "../components/BottomSheet";
+import { DemoNote } from "../components/DemoNotice";
 import JourneyResults, { NoRouteCard, TripHeadline, TripLegs, TripModes, TripReport, TripSave, TripStats } from "../components/JourneyResults";
 import MapView from "../components/MapView";
 import AvoidTransport, { AvoidDefaults } from "../components/AvoidTransport";
@@ -117,6 +118,7 @@ function SearchForm({ title, onClose, origin, destination, setOrigin, setDestina
                 {planning && <Spinner />}
                 {planning ? "Finding routes…" : "Find route"}
             </Button>
+            <DemoNote />
         </form>
     );
 }
