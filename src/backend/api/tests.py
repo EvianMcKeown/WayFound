@@ -1,6 +1,12 @@
+from pathlib import Path
+from unittest import skipUnless
+
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from rest_framework.test import APITestCase as _APITestCase
+
+needs_feed = skipUnless(Path(settings.GTFS_FOLDER, "stops.txt").exists(), "needs the GTFS feed in data/gtfs")
 
 
 class APITestCase(_APITestCase):
@@ -137,6 +143,7 @@ class PreferencesTests(APITestCase):
         self.user = User.objects.create_user("a", "a@example.com", STRONG)
         auth(self.client, self.user)
 
+    @needs_feed
     def test_defaults_then_update(self):
         resp = self.client.get("/api/preferences/")
         avoid_nothing = {"excluded_modes": [], "excluded_lines": [], "excluded_lines_detail": []}
@@ -151,11 +158,13 @@ class AvoidedTransportPreferenceTests(APITestCase):
         self.user = User.objects.create_user("a", "a@example.com", STRONG)
         auth(self.client, self.user)
 
+    @needs_feed
     def test_defaults_to_avoiding_nothing(self):
         data = self.client.get("/api/preferences/").data
         self.assertEqual(data["excluded_modes"], [])
         self.assertEqual(data["excluded_lines"], [])
 
+    @needs_feed
     def test_modes_and_lines_are_saved_with_labels(self):
         resp = self.client.patch(
             "/api/preferences/",
@@ -170,6 +179,7 @@ class AvoidedTransportPreferenceTests(APITestCase):
         self.assertTrue(detail["gone:line"]["unavailable"])
         self.assertEqual(self.client.get("/api/preferences/").data["excluded_modes"], [0, 2])
 
+    @needs_feed
     def test_other_preferences_are_left_alone(self):
         self.client.patch("/api/preferences/", {"minimize_walking": True}, format="json")
         self.client.patch("/api/preferences/", {"excluded_modes": [1]}, format="json")
@@ -182,6 +192,7 @@ class AvoidedTransportPreferenceTests(APITestCase):
             self.assertEqual(self.client.patch("/api/preferences/", body, format="json").status_code, 400)
 
 
+@needs_feed
 class LinesEndpointTests(APITestCase):
     def test_search_by_words_and_operator(self):
         found = self.client.get("/api/lines/", {"q": "bellville cape"}).data
@@ -232,6 +243,7 @@ class IssueReportTests(APITestCase):
         self.assertEqual(codes, [201] * 5 + [429])
 
 
+@needs_feed
 class PlanEndpointTests(APITestCase):
     CT_STATION = (-33.9221, 18.4257)
     CLAREMONT = (-33.9806, 18.4653)
@@ -407,6 +419,7 @@ class InputValidationTests(APITestCase):
                 self.assertEqual(resp.status_code, 400, resp.data)
                 self.assertIn(field, resp.data)
 
+    @needs_feed
     def test_plan_needs_a_departure(self):
         body = {k: v for k, v in self.BODY.items() if k not in ("day", "time")}
         self.assertEqual(self.client.post("/api/plan/", body, format="json").status_code, 400)
@@ -421,6 +434,7 @@ class InputValidationTests(APITestCase):
                 resp = self.post_plan(target_lat=place[0], target_lon=place[1])
                 self.assertIn("target", resp.data)
 
+    @needs_feed
     def test_lines_rejects_bad_query_params(self):
         for query in ("limit=abc", "limit=0", "limit=500", "mode=x", "mode=9", "keys=" + ",".join(["a"] * 51)):
             with self.subTest(query):
@@ -437,6 +451,7 @@ class InputValidationTests(APITestCase):
 
 
 class ServiceAreaTests(APITestCase):
+    @needs_feed
     def test_every_stop_is_inside(self):
         from .raptor_engine import get_engine
         from . import service_area

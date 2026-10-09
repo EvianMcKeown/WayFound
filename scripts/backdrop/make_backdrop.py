@@ -132,7 +132,7 @@ def join_lines(lines):
 def svg(body, note):
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" preserveAspectRatio="xMidYMid slice">\n'
-        f"<!-- {note} Made by scripts/backdrop/make_backdrop.py; used as a CSS mask, so the colour is the page's. -->\n"
+        f"<!-- {note} -->\n"
         f"{body}\n</svg>\n"
     )
 
@@ -152,7 +152,7 @@ def roads_svg(data):
         for cls, lines in reversed(list(by_class.items()))
         if lines
     )
-    return svg(body, "The road network of central Cape Town. Data (c) OpenStreetMap contributors, ODbL.")
+    return svg(body, "Data (c) OpenStreetMap contributors, ODbL.")
 
 
 def read_png(data):
@@ -331,8 +331,7 @@ def contours_svg(cache):
     )
     return svg(
         body,
-        f"Contours every {CONTOUR_STEP} m (heavier every {INDEX_STEP} m) of central Cape Town. Elevation: SRTM "
-        "(NASA/USGS), via the Mapzen terrain tiles.",
+        "Elevation: SRTM (NASA/USGS), via the Mapzen terrain tiles.",
     )
 
 

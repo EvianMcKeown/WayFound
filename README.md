@@ -101,6 +101,9 @@ python manage.py createsuperuser      # optional: an admin account for /admin
 ```
 The planner reads the GTFS files straight from `data/gtfs/` (`settings.GTFS_FOLDER`), so the database only needs to hold users, saved routes, preferences and issue reports.
 
+### Timetable data
+The GTFS feed is not included in the public repository: the timetables belong to MyCiTi (City of Cape Town), Golden Arrow and PRASA, and are not republished without their permission. The scripts in `data/gtfs/scripts/` fetch the operators' published timetables and build the feed into `data/gtfs/` (`myciti_fetch.py`, `prasa_fetch.py`, `gabs_fetch.py`, then the matching `*_build.py`). Without the feed the planner cannot plan journeys, and the tests that need it are skipped.
+
 ---
 
 # Usage
@@ -143,7 +146,7 @@ python manage.py check --deploy
 ```
 Django refuses to start with `DJANGO_DEBUG=0` and no secret key or allowed hosts.
 
-A hosted copy is a small demo, not a transport service: the app says so in the header, under the planner's button, in the footer and on the About page (`components/DemoNotice.jsx`). The operators' timetables are used for that demo only; the GTFS files are not to be republished until the operators give permission (`docs/plans/myciti-timetable.md`).
+A hosted copy is a small demo, not a transport service: the app says so in the header, under the planner's button, in the footer and on the About page (`components/DemoNotice.jsx`). The operators' timetables are used for that demo only; the GTFS files are not to be republished until the operators give permission.
 
 ### Tests and checks
 ```bash
@@ -187,9 +190,8 @@ The scenes render in parallel, one browser each (about 19 minutes on a GTX 980, 
 | `src/backend/` | Django REST API (planning, geocoding, accounts, saved routes, preferences, reports) |
 | `src/frontend/` | React 19, Vite and Tailwind 4 web app |
 | `src/journey_planner/` | The earlier Django prototype, kept for reference |
-| `data/gtfs/` | The cleaned GTFS feed, plus the repair and rebuild scripts in `data/gtfs/scripts/` |
+| `data/gtfs/` | Where the GTFS feed is built, and the scripts that fetch, rebuild and repair it (`data/gtfs/scripts/`) |
 | `scripts/` | Developer tools (`screenshot.mjs`, and `video/` for the help video) |
-| `docs/plans/` | Planning documents (palette, accounts, timetable rebuilds, crowdsourced routes, design system) |
 | `docs/screenshots/` | Images used in this README |
 
 ---
@@ -198,13 +200,13 @@ The scenes render in parallel, one browser each (about 19 minutes on a GTX 980, 
 
 The design tokens (a primitive palette, semantic colours with one colour per transport operator, radii, spacing and a type scale) live in `src/frontend/src/index.css`, and the shared components in `src/frontend/src/components/`.
 
-Operator colours: MyCiTi `#0a5689`, Golden Arrow `#fa8c26`, Metrorail `#00b0df`. The brand colour, Cobalt, is kept for actions, links, focus and the logo ([`docs/design/system.md`](docs/design/system.md)).
+Operator colours: MyCiTi `#0a5689`, Golden Arrow `#fa8c26`, Metrorail `#00b0df`. The brand colour, Cobalt, is kept for actions, links, focus and the logo.
 
 ---
 
 ## Data and credits
 
-- **Timetables:** published MyCiTi (City of Cape Town, myciti.org.za), Golden Arrow and PRASA Metrorail timetables, converted to GTFS. MyCiTi timetables and stop positions are the City of Cape Town's; their reuse is subject to the City's permission. Stop positions come from Western Cape Government transport data and OpenStreetMap contributors, and were repaired with the scripts in `data/gtfs/scripts/`. See `docs/plans/` for how each operator feed was rebuilt. Raw operator files are not redistributed (`data/raw/` is git-ignored).
+- **Timetables:** published MyCiTi (City of Cape Town, myciti.org.za), Golden Arrow and PRASA Metrorail timetables, converted to GTFS. MyCiTi timetables and stop positions are the City of Cape Town's; their reuse is subject to the City's permission. Stop positions come from Western Cape Government transport data and OpenStreetMap contributors, and were repaired with the scripts in `data/gtfs/scripts/`. The timetable data and the operators' raw files are not published, because the operators own them; the scripts show how the feed is built.
 - **Page backdrop:** roads © OpenStreetMap contributors; terrain from NASA SRTM.
 - **Map:** [OpenFreeMap](https://openfreemap.org/), © OpenMapTiles, © OpenStreetMap contributors. **Address search:** [Photon](https://photon.komoot.io/) by Komoot, using OpenStreetMap data.
 - Timetables can change faster than the feed is updated, and some stops are only known to the nearest area (shown as "area" in a journey). Check with the operator before an important trip.

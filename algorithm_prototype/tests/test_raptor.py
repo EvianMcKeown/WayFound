@@ -22,6 +22,9 @@ from algorithm_prototype.gtfs_reader import GTFSReader
 from datetime import timedelta
 import pytest
 
+FEED = Path(__file__).resolve().parents[2] / "data" / "gtfs" / "stops.txt"
+needs_feed = pytest.mark.skipif(not FEED.exists(), reason="needs the GTFS feed in data/gtfs")
+
 
 """
 -------------------------------------------------------------
@@ -732,6 +735,7 @@ def test_path_object_creation_with_transfer_object():
     assert "transfer_object" not in trip2_step
 
 
+@needs_feed
 def test_gtfs_reader():
     # load GTFS data
     gtfs = GTFSReader()
@@ -746,6 +750,7 @@ def test_gtfs_reader():
     check_transfer_loops(transfers)
 
 
+@needs_feed
 def test_simple_gtfs_raptor():
     # load GTFS data
     gtfs = GTFSReader()

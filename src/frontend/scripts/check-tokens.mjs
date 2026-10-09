@@ -93,7 +93,7 @@ for (const file of files(SRC)) {
 
 if (problems.length) {
     console.error(problems.join("\n"));
-    console.error(`\n${problems.length} value(s) outside the design tokens (docs/design/system.md). Use a token, or add one to src/index.css.`);
+    console.error(`\n${problems.length} value(s) outside the design tokens. Use a token, or add one to src/index.css.`);
     process.exit(1);
 }
 console.log("check-tokens: every value comes from the design tokens");
