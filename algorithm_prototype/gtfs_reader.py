@@ -257,8 +257,9 @@ class GTFSReader:
                 )  # True for VIA stops - will be estimated later
 
                 # Parse times and mark missing with INF
-                for st in rows:
-                    raw = (st["departure_time"] or "").strip()
+                for k, st in enumerate(rows):
+                    column = "arrival_time" if k == len(rows) - 1 and st.get("arrival_time") else "departure_time"
+                    raw = (st[column] or "").strip()
                     time_upper = raw.upper()
 
                     # Treat N/A as having INF time (so it won't affect interpolation)

@@ -140,13 +140,22 @@ def demote_inconsistent(placed, tier, stop_times, max_kmh=100.0):
     return demoted
 
 
+def operator_positioned(folder: Path) -> set:
+    path = folder / "sources" / "stop_provenance.csv"
+    if not path.exists():
+        return set()
+    with open(path, newline="", encoding="utf-8") as f:
+        return {r["stop_id"] for r in csv.DictReader(f) if r["source"] == "myciti"}
+
+
 def reposition_mycity(stops, stop_times, ref_dir):
     pos, osm, manual = load_reference(ref_dir)
     squashed = {}
     for k in pos:
         squashed.setdefault(squash(k), k)
 
-    mc = {r["stop_id"]: r for r in stops if r["stop_id"].startswith("mc_")}
+    official = operator_positioned(ref_dir.parent)
+    mc = {r["stop_id"]: r for r in stops if r["stop_id"].startswith("mc_") and r["stop_id"] not in official}
     placed, tier = {}, {}
     for sid, r in mc.items():
         if sid in manual:

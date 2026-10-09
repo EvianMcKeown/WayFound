@@ -758,7 +758,7 @@ def test_simple_gtfs_raptor():
 
     # For testing, pick two stops on a single route
     source_stop_id = "mr_135"
-    target_stop_id = "mc_BIG_BAY"
+    target_stop_id = "mc_BIGBAY"
 
     # "mr_1" is never used in routes, so it should be unreachable
     unreachable_stop_id = "mr_1"  # other than walking
