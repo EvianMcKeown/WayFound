@@ -6,7 +6,6 @@ settings.json
 .vscode
 .coverage
 
-
 # raw operator files (not redistributable)
 data/raw/
 data/gtfs/non_monotone_trips.txt
