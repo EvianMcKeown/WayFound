@@ -202,7 +202,7 @@ Operator colours: MyCiTi `#0a5689`, Golden Arrow `#fa8c26`, Metrorail `#00b0df`.
 
 ## Data and credits
 
-- **Timetables:** published MyCiTi, Golden Arrow and PRASA Metrorail timetables, converted to GTFS. Stop positions come from Western Cape Government transport data and OpenStreetMap contributors, and were repaired with the scripts in `data/gtfs/scripts/`. See `docs/plans/` for how each operator feed was rebuilt. Raw operator files are not redistributed (`data/raw/` is git-ignored).
+- **Timetables:** published MyCiTi (City of Cape Town, myciti.org.za), Golden Arrow and PRASA Metrorail timetables, converted to GTFS. MyCiTi timetables and stop positions are the City of Cape Town's; their reuse is subject to the City's permission. Stop positions come from Western Cape Government transport data and OpenStreetMap contributors, and were repaired with the scripts in `data/gtfs/scripts/`. See `docs/plans/` for how each operator feed was rebuilt. Raw operator files are not redistributed (`data/raw/` is git-ignored).
 - **Page backdrop:** roads © OpenStreetMap contributors; terrain from NASA SRTM.
 - **Map:** [OpenFreeMap](https://openfreemap.org/), © OpenMapTiles, © OpenStreetMap contributors. **Address search:** [Photon](https://photon.komoot.io/) by Komoot, using OpenStreetMap data.
 - Timetables can change faster than the feed is updated, and some stops are only known to the nearest area (shown as "area" in a journey). Check with the operator before an important trip.
