@@ -1,3 +1,4 @@
+import copy
 import csv
 from pathlib import Path
 from typing import Optional, Tuple
@@ -11,6 +12,8 @@ from algorithm_prototype.raptor import (
     MIN_TRANSFER_TIME,
     helper_functions as hf,
     raptor_algo,
+    prepare_network,
+    route_time_bounds,
     reconstruct_path,
     reconstruct_path_objs,
     check_duplicate_stops,
@@ -1315,3 +1318,42 @@ def test_transfer_to_an_approximate_stop_allows_for_walking_within_the_area():
     far = Stop(id="C", mode=1, lat=-33.9000, lon=18.5000 + (950 / 93000), approximate=True)
     assert not [t for t in hf.create_transfers({"A": a, "C": far}, 1000) if t.from_stop.id == "A"]
     assert AREA_WALK_ALLOWANCE_M == 200
+
+
+def test_prepare_network_with_cached_time_bounds_matches_uncached(minimal_gtfs: str):
+    reader = GTFSReader(gtfs_folder=minimal_gtfs)
+    bounds = route_time_bounds(reader.routes)
+
+    plain = prepare_network(reader.stops, reader.routes, [])
+    cached = prepare_network(reader.stops, reader.routes, [], bounds)
+
+    assert cached.trip_last_time == plain.trip_last_time
+    assert cached.trip_first_time == plain.trip_first_time
+    assert cached.stop_ids == plain.stop_ids
+    assert cached.routes_stop_indices == plain.routes_stop_indices
+    assert cached.trip_last_time is bounds[0]
+    assert cached.trip_first_time is bounds[1]
+
+
+def test_cached_time_bounds_do_not_change_the_search(minimal_gtfs: str):
+    reader = GTFSReader(gtfs_folder=minimal_gtfs)
+    bounds = route_time_bounds(reader.routes)
+    before = copy.deepcopy(bounds)
+
+    outcomes = []
+    for time_bounds in (None, bounds, bounds):
+        prepared = prepare_network(reader.stops, reader.routes, [], time_bounds)
+        result, path = raptor_algo(
+            stops=reader.stops,
+            routes=reader.routes,
+            transfers=[],
+            source_id="GABS001",
+            target_id="GABS006",
+            departure_time=8 * 60,
+            max_rounds=5,
+            prepared=prepared,
+        )
+        outcomes.append((result["GABS006"], [step.get("trip_id") for step in path]))
+
+    assert outcomes[0] == outcomes[1] == outcomes[2]
+    assert bounds == before

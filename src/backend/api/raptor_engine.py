@@ -16,6 +16,7 @@ from algorithm_prototype.raptor import (
     helper_functions as hf,
     raptor_algo,
     prepare_network,
+    route_time_bounds,
     reconstruct_path_objs,
     Stop,
     Route,
@@ -270,6 +271,7 @@ class RaptorEngine:
         self._gtfs_folder = gtfs_folder or getattr(settings, "GTFS_FOLDER", None)
         self.stops: Dict[str, Stop] = {}
         self.routes: Dict[str, Route] = {}
+        self._time_bounds = None
         self.transfers: List[Transfer] = []
         self.transfer_map: Dict[Tuple[str, str], Transfer] = {}
         self.last_max_walk_distance: int = MAX_WALK_DIST
@@ -351,6 +353,7 @@ class RaptorEngine:
                 if stop_id in self.stops:
                     self.stops[stop_id].approximate = True
             self.routes = reader.routes
+            self._time_bounds = route_time_bounds(self.routes)
             self._index_lines()
             # build walk transfers (if non-default max_walk_distance is used, transfers need to be
             # created in the planner call)
@@ -418,7 +421,7 @@ class RaptorEngine:
             # minimize number of transfers by setting max_rounds to a low value
             max_rounds = 3
 
-        prepared = prepare_network(search_stops, self.routes, search_transfers)
+        prepared = prepare_network(search_stops, self.routes, search_transfers, self._time_bounds)
 
         excluded, unknown_lines = self.resolve_exclusions(exclude_modes, exclude_lines)
 

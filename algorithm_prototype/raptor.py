@@ -439,8 +439,25 @@ class PreparedNetwork:
     trip_first_time: Dict[str, List[int]]
 
 
+def route_time_bounds(
+    routes: Dict[str, Route],
+) -> Tuple[Dict[str, List[int]], Dict[str, List[int]]]:
+    last = {
+        rid: [max((t for t in trip.departure_times if t != INF), default=-1) for trip in route.trips]
+        for rid, route in routes.items()
+    }
+    first = {
+        rid: [min((t for t in trip.departure_times if t != INF), default=INF) for trip in route.trips]
+        for rid, route in routes.items()
+    }
+    return last, first
+
+
 def prepare_network(
-    stops: Dict[str, Stop], routes: Dict[str, Route], transfers: List[Transfer]
+    stops: Dict[str, Stop],
+    routes: Dict[str, Route],
+    transfers: List[Transfer],
+    time_bounds: Optional[Tuple[Dict[str, List[int]], Dict[str, List[int]]]] = None,
 ) -> PreparedNetwork:
     check_transfer_loops(transfers)  # check no self loops in transfers
     stop_ids = list(stops.keys())
@@ -450,14 +467,7 @@ def prepare_network(
     for t in transfers:
         transfer_adj[id_to_idx[t.from_stop.id]].append((id_to_idx[t.to_stop.id], t.walking_time))
     routes_stop_indices = {rid: [id_to_idx[s.id] for s in route.stops] for rid, route in routes.items()}
-    trip_last_time = {
-        rid: [max((t for t in trip.departure_times if t != INF), default=-1) for trip in route.trips]
-        for rid, route in routes.items()
-    }
-    trip_first_time = {
-        rid: [min((t for t in trip.departure_times if t != INF), default=INF) for trip in route.trips]
-        for rid, route in routes.items()
-    }
+    trip_last_time, trip_first_time = time_bounds if time_bounds is not None else route_time_bounds(routes)
     return PreparedNetwork(
         stop_ids, id_to_idx, idx_to_id, transfer_adj, routes_stop_indices, trip_last_time, trip_first_time
     )
