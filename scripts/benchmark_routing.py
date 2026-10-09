@@ -26,8 +26,6 @@ SLOTS = [
     ("Sun 14:00", 6, 840),
 ]
 
-BASELINE_REF = "c16ca21^"
-
 
 def make_queries(count: int, seed: int, min_distance: float = 2000) -> List[Dict[str, Any]]:
     sys.path.insert(0, str(ROOT))
@@ -56,6 +54,18 @@ def make_queries(count: int, seed: int, min_distance: float = 2000) -> List[Dict
             }
         )
     return queries
+
+
+def find_baseline() -> str:
+    removed = subprocess.run(
+        ["git", "-C", str(ROOT), "log", "-1", "--diff-filter=D", "--format=%H", "--", "algorithm_prototype/dijkstra.py"],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
+    if not removed:
+        raise RuntimeError("no commit in this history removed algorithm_prototype/dijkstra.py")
+    return removed + "^"
 
 
 def export_baseline(ref: str, dest: Path) -> Path:
@@ -237,7 +247,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Time the journey planner against the old Dijkstra planner.")
     parser.add_argument("--queries", type=int, default=120, help="journeys to time")
     parser.add_argument("--seed", type=int, default=20261009, help="seed for picking the journeys")
-    parser.add_argument("--baseline-ref", default=BASELINE_REF, help="commit holding the old Dijkstra")
+    parser.add_argument("--baseline-ref", help="commit holding the old Dijkstra (default: the one before it was removed)")
     parser.add_argument("--dijkstra-queries", type=int, default=40, help="journeys for the slow, unchanged Dijkstra")
     parser.add_argument("--timeout", type=float, default=60, help="seconds before one journey is given up")
     parser.add_argument("--skip-dijkstra", action="store_true", help="time only the current planner")
@@ -264,7 +274,7 @@ def main(argv: Optional[List[str]] = None) -> None:
 
         variants: List[Tuple[str, Path, str, int]] = []
         if not args.skip_dijkstra:
-            baseline = export_baseline(args.baseline_ref, tmp_path / "baseline")
+            baseline = export_baseline(args.baseline_ref or find_baseline(), tmp_path / "baseline")
             fair = make_fair_copy(baseline, tmp_path / "fair")
             variants += [
                 ("dijkstra_as_was", baseline, "dijkstra", args.dijkstra_queries),
