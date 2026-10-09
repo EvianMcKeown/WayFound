@@ -102,7 +102,7 @@ python manage.py createsuperuser      # optional: an admin account for /admin
 The planner reads the GTFS files straight from `data/gtfs/` (`settings.GTFS_FOLDER`), so the database only needs to hold users, saved routes, preferences and issue reports.
 
 ### Timetable data
-The GTFS feed is not included in the public repository: the timetables belong to MyCiTi (City of Cape Town), Golden Arrow and PRASA, and are not republished without their permission. The scripts in `data/gtfs/scripts/` fetch the operators' published timetables and build the feed into `data/gtfs/` (`myciti_fetch.py`, `prasa_fetch.py`, `gabs_fetch.py`, then the matching `*_build.py`). Without the feed the planner cannot plan journeys, and the tests that need it are skipped.
+The GTFS feed is not included in the public repository: the timetables belong to MyCiTi (City of Cape Town), Golden Arrow and PRASA, and are not republished without their permission. The scripts in `data/gtfs/scripts/` fetch the operators' published timetables and build the feed into `data/gtfs/` (`myciti_fetch.py`, `prasa_fetch.py`, `gabs_fetch.py`, then the matching `*_build.py`). They need `pip install -r data/gtfs/scripts/requirements.txt`, and Golden Arrow needs poppler's `pdftotext` (set `PDFTOTEXT` to its path if another `pdftotext`, such as the one bundled with Git for Windows, comes first). Without the feed the planner cannot plan journeys, and the tests that need it are skipped.
 
 ---
 

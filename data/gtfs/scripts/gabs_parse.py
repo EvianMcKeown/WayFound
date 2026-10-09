@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import re
 import subprocess
 import sys
@@ -56,8 +57,18 @@ def days_in(text: str) -> frozenset:
     return frozenset(idx)
 
 
+PDFTOTEXT = os.environ.get("PDFTOTEXT", "pdftotext")
+_checked = False
+
+
 def pdf_text(path: Path) -> str:
-    return subprocess.run(["pdftotext", "-layout", str(path), "-"], capture_output=True, text=True, check=True).stdout
+    global _checked
+    if not _checked:
+        version = subprocess.run([PDFTOTEXT, "-v"], capture_output=True, text=True)
+        if "xpdf" in (version.stdout + version.stderr).lower():
+            raise SystemExit(f"{PDFTOTEXT} is xpdf's pdftotext; the parser needs poppler's (set PDFTOTEXT to it)")
+        _checked = True
+    return subprocess.run([PDFTOTEXT, "-layout", str(path), "-"], capture_output=True, text=True, check=True).stdout
 
 
 def filename_header(file: str):
