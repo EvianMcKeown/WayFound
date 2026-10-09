@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AppShell from "./AppShell";
 import Brand from "./Brand";
+import { PORTFOLIO_URL } from "../lib/site";
 
 const footerLink = "font-medium text-mist-700 hover:text-brand-700";
 
@@ -45,6 +46,7 @@ export default function Page({ width = "md", centered = false, children }) {
                             <Link to="/about" className={footerLink}>About</Link>
                             <Link to="/faq" className={footerLink}>Help</Link>
                             <Link to="/report" className={footerLink}>Report an issue</Link>
+                            <a href={PORTFOLIO_URL} target="_blank" rel="noopener noreferrer" className={footerLink}>Portfolio</a>
                         </nav>
                         <div className="flex flex-col items-center gap-0.5 text-center sm:items-end sm:text-right">
                             <p>&copy; {new Date().getFullYear()} WayFound · a demo, not an official transport service</p>

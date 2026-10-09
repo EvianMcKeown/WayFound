@@ -3,6 +3,7 @@ import Page from "../components/Page";
 import { Wordmark } from "../components/Brand";
 import { MODE_STYLE } from "../lib/journey";
 import { Button, Panel, TextLink } from "../components/ui";
+import { PORTFOLIO_URL } from "../lib/site";
 
 const OPERATORS = [
     ["MyCiTi", "City of Cape Town bus rapid transit", MODE_STYLE.myciti.color],
@@ -104,8 +105,9 @@ export default function About() {
 
             <Card title="Who built it">
                 <p className="text-sm text-mist-700">
-                    WayFound is designed and built by EJMLabs. Questions, ideas or something wrong?{" "}
-                    <TextLink to="/report">Get in touch</TextLink>.
+                    WayFound is designed and built by EJMLabs (Evian McKeown). See more of the work on{" "}
+                    <TextLink href={PORTFOLIO_URL} target="_blank" rel="noopener noreferrer">the portfolio site</TextLink>.
+                    Questions, ideas or something wrong? <TextLink to="/report">Get in touch</TextLink>.
                 </p>
             </Card>
         </Page>
