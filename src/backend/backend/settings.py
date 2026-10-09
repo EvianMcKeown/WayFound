@@ -94,9 +94,17 @@ WSGI_APPLICATION = "backend.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": os.environ.get("DJANGO_DB_PATH", BASE_DIR / "db.sqlite3"),
     }
 }
+
+if os.environ.get("DJANGO_CACHE_DIR"):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+            "LOCATION": os.environ["DJANGO_CACHE_DIR"],
+        }
+    }
 
 
 # ----------------------------
@@ -153,6 +161,7 @@ REST_FRAMEWORK = {
         "signup": "5/hour",
         "password": "5/hour",
     },
+    "NUM_PROXIES": 1,
 }
 
 SIMPLE_JWT = {
